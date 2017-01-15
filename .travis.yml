@@ -1,6 +1,6 @@
 language: go
 go:
-  - 1.7
+  - 1.7.x
 go_import_path: github.com/coreos/kube-aws
 script:
   - echo Using go $TRAVIS_GO_VERSION
