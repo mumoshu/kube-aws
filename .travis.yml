@@ -4,6 +4,7 @@ go:
 go_import_path: github.com/coreos/kube-aws
 script:
   - echo Using go $TRAVIS_GO_VERSION
+  - go list ./... | grep -v '/vendor/'
   - make test-with-cover
 after_success:
   - bash <(curl -s https://codecov.io/bash)
