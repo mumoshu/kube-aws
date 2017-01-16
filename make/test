@@ -16,7 +16,7 @@ with-cover() {
       rm profile.out
     fi
   done
-  go vet $(go list ./... | grep -v '/vendor/')
+  go vet -all -v $(go list ./... | grep -v '/vendor/')
 }
 
 if [ -z ${1+x} ]; then
