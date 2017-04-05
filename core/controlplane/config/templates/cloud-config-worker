@@ -139,7 +139,9 @@ coreos:
         --volume stage,kind=host,source=/tmp \
         --mount volume=stage,target=/tmp \
         --volume var-log,kind=host,source=/var/log \
-        --mount volume=var-log,target=/var/log"
+        --mount volume=var-log,target=/var/log{{ if .UseCalico }} \
+        --volume cni-bin,kind=host,source=/opt/cni/bin \
+        --mount volume=cni-bin,target=/opt/cni/bin{{ end }}"
         ExecStartPre=/usr/bin/systemctl is-active flanneld.service
         ExecStartPre=/usr/bin/systemctl is-active cfn-etcd-environment.service
         ExecStartPre=/usr/bin/mkdir -p /var/lib/cni

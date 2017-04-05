@@ -857,6 +857,15 @@
             "IpProtocol": "tcp",
             "ToPort": 22
           },
+          {{if $.UseCalico -}}
+          {{/* Required by calico-policy-controller when calico is enabled. See https://github.com/kubernetes-incubator/kube-aws/issues/494#issuecomment-291687137 */}}
+          {
+            "SourceSecurityGroupId" : { "Ref" : "SecurityGroupWorker" },
+            "FromPort": 443,
+            "IpProtocol": "tcp",
+            "ToPort": 443
+          },
+          {{end -}}
           {
             "SourceSecurityGroupId" : { "Ref" : "SecurityGroupElbAPIServer" },
             "FromPort": 443,
