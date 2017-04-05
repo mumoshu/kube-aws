@@ -156,6 +156,7 @@ coreos:
                        cluster-health
         {{if .UseCalico -}}
         ExecStartPre=/bin/sh -ec "mkdir -p /etc/calico/certs && cp /etc/kubernetes/ssl/ca.pem /etc/calico/certs/etcd-ca && cp /etc/kubernetes/ssl/etcd-client-key.pem /etc/calico/certs/etcd-key && cp /etc/kubernetes/ssl/etcd-client.pem /etc/calico/certs/etcd-cert"
+        ExecStartPre=docker run --rm -e SLEEP=false -v /opt/cni/bin:/host/opt/cni/bin {{ .CalicoCniImage.RepoWithTag }} /install-cni.sh
         {{end -}}
         ExecStart=/usr/lib/coreos/kubelet-wrapper \
         --api-servers={{.APIServerEndpoint}} \
