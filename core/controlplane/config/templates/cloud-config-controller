@@ -1673,6 +1673,25 @@ write_files:
 
 {{ else }}
 
+  - path: /etc/kubernetes/cni/net.d/10-calico.conf
+    content: |
+      {
+        "name": "calico",
+        "type": "flannel",
+        "delegate": {
+          "type": "calico",
+          "etcd_endpoints": "#ETCD_ENDPOINTS#",
+          "etcd_key_file": "/etc/kubernetes/cni/net.d/calico-tls/etcd-key",
+          "etcd_cert_file": "/etc/kubernetes/cni/net.d/calico-tls/etcd-cert",
+          "etcd_ca_cert_file": "/etc/kubernetes/cni/net.d/calico-tls/etcd-ca",
+          "log_level": "info",
+          "policy": {
+            "type": "k8s",
+            "k8s_api_root": "http://127.0.0.1:8080/api/v1/"
+          }
+        }
+      }
+
   - path: /etc/kubernetes/manifests/calico-cni.yaml
     content: |
       apiVersion: v1
@@ -1744,7 +1763,7 @@ write_files:
               path: /opt/cni/bin
           - name: cni-net-dir
             hostPath:
-              path: /etc/kubernetes/cni/net.d
+              path: /etc/kubernetes/cni/net.d.2
           # a mirror pod can't mount from a k8s secret. So copy required files beforehand and mount the host path
           - name: etcd-certs
             hostPath:
