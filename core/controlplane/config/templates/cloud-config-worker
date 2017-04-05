@@ -818,9 +818,9 @@ write_files:
         "delegate": {
           "type": "calico",
           "etcd_endpoints": "#ETCD_ENDPOINTS#",
-          "etcd_key_file": "/etc/kubernetes/cni/net.d/calico-tls/etcd-key",
-          "etcd_cert_file": "/etc/kubernetes/cni/net.d/calico-tls/etcd-cert",
-          "etcd_ca_cert_file": "/etc/kubernetes/cni/net.d/calico-tls/etcd-ca",
+          "etcd_key_file": "/etc/kubernetes/ssl/etcd-client-key.pem",
+          "etcd_cert_file": "/etc/kubernetes/ssl/etcd-client.pem",
+          "etcd_ca_cert_file": "/etc/kubernetes/ssl/ca.pem",
           "log_level": "info",
           "policy": {
             "type": "k8s",
