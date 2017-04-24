@@ -55,14 +55,16 @@ coreos:
         Type=oneshot
         RemainAfterExit=yes
         RestartSec=5
+        Environment=ETCDADM_MEMBER_ENV_FILE=/var/run/coreos/etcdadm/etcd-member.env
+        Environment=ETCD_VERSION={{ .Etcd.Version }}
+        {{if .Etcd.DisasterRecovery.IsAutomatedForEtcdVersion .Etcd.Version -}}
+        Environment=ETCDADM_CLUSTER_AUTORECOVER=1
+        {{end -}}
         EnvironmentFile=-/etc/etcd-environment
         EnvironmentFile=-/var/run/coreos/etcdadm-environment
         ExecStartPre=/usr/bin/systemctl is-active cfn-etcd-environment.service
         ExecStartPre=/usr/bin/mkdir -p /var/run/coreos/etcdadm/snapshots
         ExecStart=/opt/bin/etcdadm reconfigure
-        {{if .Etcd.DisasterRecovery.IsAutomatedForEtcdVersion .Etcd.Version -}}
-        ExecStartPost=/usr/bin/systemctl start etcdadm-check.timer
-        {{end -}}
         TimeoutStartSec=120
 
         [Install]
@@ -100,13 +102,13 @@ coreos:
         Type=oneshot
         EnvironmentFile=-/etc/etcd-environment
         EnvironmentFile=-/var/run/coreos/etcdadm-environment
-        ExecStartPre=/usr/bin/systemctl is-active {{.Etcd.SystemdUnitName}}
         ExecStart=/opt/bin/etcdadm check
         TimeoutStartSec=120
 
-    {{if .Etcd.DisasterRecovery.IsAutomatedForEtcdVersion .Etcd.Version -}}
+    {{if .Etcd.DisasterRecovery.SupportsEtcdVersion .Etcd.Version -}}
     - name: etcdadm-check.timer
       enable: true
+      command: start
       content: |
         [Unit]
         Description=periodic etcd health check
@@ -164,13 +166,20 @@ coreos:
             After=decrypt-assets.service
             {{- end}}
             {{if .Etcd.DisasterRecovery.SupportsEtcdVersion .Etcd.Version -}}
-            {{/* can be `Wants` if you like etcd-member to not stop when etcdadm-reconfigure failed */}}
-            BindsTo=etcdadm-reconfigure.service etcdadm-update-status.service
+            # record failing state
+            OnFailure=etcdadm-check.service
+            BindsTo=etcdadm-update-status.service
+            # start /opt/etcdadm reconfigure every time we get restarted, this will ensure
+            # that if we are not up for ETCD_CLUSTER_FAILURE_PERIOD_LIMIT seconds, wipe datadir and rejoin
+            # cluster fresh
+            Wants=etcdadm-reconfigure.service
             After=etcdadm-reconfigure.service
             Before=etcdadm-update-status.service
             {{end -}}
 
             [Service]
+            Restart=always
+            RestartSec=10
             EnvironmentFile=-/etc/etcd-environment
 
             PermissionsStartOnly=true
@@ -184,6 +193,7 @@ coreos:
           content: |
             [Service]
             Environment="ETCD_IMAGE_TAG=v{{.Etcd.Version}}"
+            EnvironmentFile=-/var/run/coreos/etcdadm/etcd-member.env
         {{end}}
       enable: true
       command: start
@@ -555,7 +565,9 @@ write_files:
       ETCD_LISTEN_CLIENT_URLS=https://$private_ip:2379
       ETCD_ADVERTISE_CLIENT_URLS=https://$advertised_hostname:2379
       ETCD_LISTEN_PEER_URLS=https://$private_ip:2380
-      ETCD_INITIAL_ADVERTISE_PEER_URLS=https://$advertised_hostname:2380" >> /var/run/coreos/etcd-environment
+      ETCD_INITIAL_ADVERTISE_PEER_URLS=https://$advertised_hostname:2380
+
+      ETCD_CLUSTER_FAILURE_PERIOD_LIMIT=120" >> /var/run/coreos/etcd-environment
 
   - path: /opt/bin/cfn-etcd-environment
     owner: root:root
