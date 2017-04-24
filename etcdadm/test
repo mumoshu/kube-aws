@@ -274,6 +274,7 @@ Environment=ETCDADM_MEMBER_COUNT=$member_count
 Environment=ETCDADM_MEMBER_INDEX=$(config_member_index)
 Environment=ETCDADM_STATE_FILES_DIR=$(config_state_dir)
 Environment=ETCDADM_CLUSTER_SNAPSHOTS_S3_URI=$cluster_snapshots_s3_uri
+Environment=ETCDADM_CLUSTER_AUTORECOVER=${ETCDADM_CLUSTER_AUTORECOVER:-0}
 ExecStart=$(pwd)/etcdadm reconfigure
 EOS
 "
