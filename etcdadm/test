@@ -237,6 +237,11 @@ tester_start_member() {
   tester_log started $(member_name)
 }
 
+tester_start_member_async() {
+  tester_log starting $(member_name) asynchronously
+  sudo systemctl start --no-block $(config_member_systemd_unit_name)
+  tester_log started $(member_name) asynchronously
+}
 tester_create_configurator_systemd_unit() {
   local unit_file
   unit_file=$(tester_member_configurator_systemd_unit_path)
@@ -635,7 +640,7 @@ tester_run_all_tests() {
   echo
 
   tester_each_member tester_simulate_temporary_member_failure
-  tester_each_member tester_start_member
+  tester_each_member tester_start_member_async
   tester_each_member tester_wait_until_ready
 
   echo reading values after all the members are restarted... 1>&2
@@ -669,7 +674,7 @@ tester_run_all_tests() {
   tester_each_member tester_get_v3 /foo
   tester_each_member tester_get_v2 /foo
   tester_simulate_permanent_cluster_failure
-  tester_each_member tester_start_member
+  tester_each_member tester_start_member_async
   tester_each_member tester_wait_until_ready
 
   echo reading values restored just now... 1>&2
