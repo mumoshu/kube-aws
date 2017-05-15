@@ -45,7 +45,14 @@
           {{- if gt $i 0}},{{end}}
           {{ $ref }}
           {{- end}}
+        ],
+        "TargetGroupARNs" : [
+          {{range $i, $ref := .APIEndpoints.TargetGroupARNRefs -}}
+          {{- if gt $i 0}},{{end}}
+          {{ $ref }}
+          {{- end}}
         ]
+
       },
       {{if .WaitSignal.Enabled}}
       "CreationPolicy" : {
@@ -795,6 +802,7 @@
       }
     },
     {{ end -}}
+    {{if .LoadBalancer.Classic}}
     "{{.LoadBalancer.LogicalName}}" : {
       "Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
       "Properties" : {
@@ -836,6 +844,74 @@
         ]
       }
     },
+    {{else}}
+    "{{.LoadBalancer.TargetGroupLogicalName}}" : {
+      "Type" : "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Properties" : {
+        "HealthCheckIntervalSeconds" : "10",
+        "HealthCheckPath" : "/healthz",
+        "HealthCheckPort" : "8080",
+        "HealthCheckProtocol" : "HTTP",
+        "HealthCheckTimeoutSeconds" : "8",
+        "HealthyThresholdCount" : "3",
+        "Matcher" : { "HttpCode" : "200" },
+        "Name" : "{{$.ClusterName}}-api-{{$i}}",
+        "Port" : "443",
+        "Protocol" : "HTTPS",
+        "Tags" : [
+          {"Key": "Name", "Value": "{{$.ClusterName}}-api-{{$i}}"}
+        ],
+        "TargetGroupAttributes" : [
+          { "Key" : "deregistration_delay.timeout_seconds", "Value" : "60" },
+          { "Key" : "stickiness.enabled", "Value" : "false" }
+        ],
+        "UnhealthyThresholdCount" : "3",
+        "VpcId" : {{$.VPCRef}}
+      }
+    },
+    "{{.LoadBalancer.LogicalName}}" : {
+      "Type" : "AWS::ElasticLoadBalancingV2::LoadBalancer",
+      "Properties" : {
+        "LoadBalancerAttributes" : [
+          { "Key" : "access_logs.s3.enabled", "Value" : "false" },
+          { "Key" : "deletion_protection.enabled", "Value" : "false" },
+          { "Key" : "idle_timeout.timeout_seconds", "Value" : "60" }
+        ],
+        "Name" : "{{$.ClusterName}}-{{.LoadBalancer.LogicalName}}",
+        "Scheme": "{{if .LoadBalancer.Private}}internal{{else}}internet-facing{{end}}",
+        "SecurityGroups": [
+          {{range $sgIndex, $sgRef := .LoadBalancer.SecurityGroupRefs}}
+          {{if gt $sgIndex 0}},{{end}}
+          {{$sgRef}}
+          {{end}}
+        ],
+        "Subnets" : [
+          {{range $index, $subnet := .LoadBalancer.Subnets}}
+          {{if gt $index 0}},{{end}}
+          {{$subnet.Ref}}
+          {{end}}
+        ],
+        "Tags" : [
+          {"Key": "Name", "Value": "{{$.ClusterName}}-{{.LoadBalancer.LogicalName}}" }
+        ]
+      }
+    },
+    "{{.LoadBalancer.LogicalName}}Listener" : {
+      "Type" : "AWS::ElasticLoadBalancingV2::Listener",
+      "Properties" : {
+        "Certificates": [{
+          "CertificateArn": "{{.LoadBalancer.CertificateARN}}"
+        }],
+        "DefaultActions" : [{
+          "TargetGroupArn" : { "Ref" : "{{.LoadBalancer.TargetGroupLogicalName}}" },
+          "Type" : "forward"
+        }],
+        "LoadBalancerArn" : { "Ref" : "{{.LoadBalancer.LogicalName}}" },
+        "Port" : "443",
+        "Protocol" : "HTTPS"
+      }
+    },
+    {{end}}
     {{if .LoadBalancer.ManageSecurityGroup -}}
     "{{.LoadBalancer.SecurityGroupLogicalName}}" : {
       "Properties": {
@@ -943,6 +1019,14 @@
             "IpProtocol": "tcp",
             "ToPort": 443
           },
+          {{if .APIEndpoints.AnyEndpointIsALBBacked}}
+          {
+            "SourceSecurityGroupId" : { "Ref" : "SecurityGroupElbAPIServer" },
+            "FromPort": 8080,
+            "IpProtocol": "tcp",
+            "ToPort": 8080
+          },
+          {{end}}
           {
             "SourceSecurityGroupId" : { "Ref" : "SecurityGroupWorker" },
             "FromPort": 443,

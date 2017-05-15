@@ -73,6 +73,16 @@ func NewAPIEndpoints(configs []model.APIEndpoint, allSubnets []model.Subnet) (AP
 	return endpoints, nil
 }
 
+func (e APIEndpoints) AnyEndpointIsALBBacked() bool {
+	for _, endpoint := range e {
+		lb := endpoint.LoadBalancer
+		if lb.Enabled() && !lb.Classic {
+			return true
+		}
+	}
+	return false
+}
+
 // FindByName finds an API endpoint in this set by its name
 func (e APIEndpoints) FindByName(name string) (*APIEndpoint, error) {
 	endpoint, exists := e[name]
@@ -92,8 +102,21 @@ func (e APIEndpoints) FindByName(name string) (*APIEndpoint, error) {
 func (e APIEndpoints) ELBRefs() []string {
 	refs := []string{}
 	for _, endpoint := range e {
-		if endpoint.LoadBalancer.Enabled() {
-			refs = append(refs, endpoint.LoadBalancer.Ref())
+		lb := endpoint.LoadBalancer
+		if lb.Enabled() && lb.Classic {
+			refs = append(refs, lb.Ref())
+		}
+	}
+	return refs
+}
+
+// TargetGroupARNRefs returns the names of all the ALB target groups to which controller nodes should be associated
+func (e APIEndpoints) TargetGroupARNRefs() []string {
+	refs := []string{}
+	for _, endpoint := range e {
+		lb := endpoint.LoadBalancer
+		if lb.Enabled() && !lb.Classic {
+			refs = append(refs, lb.TargetGroupARNRef())
 		}
 	}
 	return refs
@@ -103,8 +126,22 @@ func (e APIEndpoints) ELBRefs() []string {
 func (e APIEndpoints) ManagedELBLogicalNames() []string {
 	logicalNames := []string{}
 	for _, endpoint := range e {
-		if endpoint.LoadBalancer.ManageELB() {
-			logicalNames = append(logicalNames, endpoint.LoadBalancer.LogicalName())
+		lb := endpoint.LoadBalancer
+		if lb.ManageELB() && lb.Classic {
+			logicalNames = append(logicalNames, lb.LogicalName())
+		}
+	}
+	sort.Strings(logicalNames)
+	return logicalNames
+}
+
+// ManageALBLogicalNames returns all the logical names of the cfn resources corresponding to ALBs managed by kube-aws for API endpoints
+func (e APIEndpoints) ManagedALBLogicalNames() []string {
+	logicalNames := []string{}
+	for _, endpoint := range e {
+		lb := endpoint.LoadBalancer
+		if lb.ManageELB() && !lb.Classic {
+			logicalNames = append(logicalNames, lb.LogicalName())
 		}
 	}
 	sort.Strings(logicalNames)

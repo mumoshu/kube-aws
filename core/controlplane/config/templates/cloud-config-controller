@@ -1231,6 +1231,9 @@ write_files:
           - apiserver
           - --apiserver-count={{if .MinControllerCount}}{{ .MinControllerCount }}{{else}}{{ .ControllerCount }}{{end}}
           - --bind-address=0.0.0.0
+          {{if .APIEndpoints.AnyEndpointIsALBBacked}}
+          - --insecure-bind-address=0.0.0.0
+          {{end}}
           - --etcd-servers=#ETCD_ENDPOINTS#
           - --etcd-cafile=/etc/kubernetes/ssl/ca.pem
           - --etcd-certfile=/etc/kubernetes/ssl/etcd-client.pem
