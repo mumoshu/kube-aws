@@ -73,16 +73,6 @@ func NewAPIEndpoints(configs []model.APIEndpoint, allSubnets []model.Subnet) (AP
 	return endpoints, nil
 }
 
-func (e APIEndpoints) AnyEndpointIsALBBacked() bool {
-	for _, endpoint := range e {
-		lb := endpoint.LoadBalancer
-		if lb.Enabled() && !lb.Classic {
-			return true
-		}
-	}
-	return false
-}
-
 // FindByName finds an API endpoint in this set by its name
 func (e APIEndpoints) FindByName(name string) (*APIEndpoint, error) {
 	endpoint, exists := e[name]

@@ -849,12 +849,12 @@
       "Type" : "AWS::ElasticLoadBalancingV2::TargetGroup",
       "Properties" : {
         "HealthCheckIntervalSeconds" : "10",
-        "HealthCheckPath" : "/healthz",
-        "HealthCheckPort" : "8080",
-        "HealthCheckProtocol" : "HTTP",
+        "HealthCheckPath" : "/",
+        "HealthCheckPort" : "443",
+        "HealthCheckProtocol" : "HTTPS",
         "HealthCheckTimeoutSeconds" : "8",
         "HealthyThresholdCount" : "3",
-        "Matcher" : { "HttpCode" : "200" },
+        "Matcher" : { "HttpCode" : "401" },
         "Name" : "{{$.ClusterName}}-api-{{$i}}",
         "Port" : "443",
         "Protocol" : "HTTPS",
@@ -1019,14 +1019,6 @@
             "IpProtocol": "tcp",
             "ToPort": 443
           },
-          {{if .APIEndpoints.AnyEndpointIsALBBacked}}
-          {
-            "SourceSecurityGroupId" : { "Ref" : "SecurityGroupElbAPIServer" },
-            "FromPort": 8080,
-            "IpProtocol": "tcp",
-            "ToPort": 8080
-          },
-          {{end}}
           {
             "SourceSecurityGroupId" : { "Ref" : "SecurityGroupWorker" },
             "FromPort": 443,
