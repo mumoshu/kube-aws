@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -ve
+
 # Requires the following command beforehand:
 #   $ gem install travis
 #   $ travis login --auto
