@@ -32,4 +32,6 @@ if [ $status -ne 1 ]; then
   exit 1
 fi
 
+echo running node.js $(node -v)
+
 make publish-docs
