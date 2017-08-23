@@ -24,4 +24,9 @@ echo -e "Host github.com\n\tStrictHostKeyChecking no\nIdentityFile $(pwd)/ci/kub
 
 ssh git@github.com
 
+if [ $? -ne 1 ]; then
+  echo ssh connection check to github failed 1>&2
+  exit 1
+fi
+
 make publish-docs
