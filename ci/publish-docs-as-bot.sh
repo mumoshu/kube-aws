@@ -37,12 +37,6 @@ if [ $status -ne 1 ]; then
   exit 1
 fi
 
-echo Node.js $(node -v) is installed
+echo Node.js $(node -v) is installed/being used
 
-nvm list
-nvm use stable
-
-echo Node.js $(node -v) is being used
-
-echo hello
 make publish-docs
