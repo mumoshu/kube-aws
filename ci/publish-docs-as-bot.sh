@@ -2,6 +2,8 @@
 
 set -ve
 
+echo hello
+
 # Requires the following command beforehand:
 #   $ gem install travis
 #   $ travis login --auto
