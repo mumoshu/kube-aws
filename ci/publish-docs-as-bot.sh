@@ -2,8 +2,10 @@
 
 set -ve
 
-# This script assumes you've created a ssh key used by kube-aws-bot to ssh into github:
+# This script:
+# - assumes you've created a ssh key used by kube-aws-bot to ssh into github:
 #   https://help.github.com/articles/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent/
+# - utilizes Travis CI's file encryption feature for encrypting ssh keys
 
 # It requires the following command beforehand:
 #   $ gem install travis
