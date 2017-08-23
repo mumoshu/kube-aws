@@ -44,4 +44,4 @@ serve-docs: docs-dependencies
 
 .PHONY: publish-docs
 publish-docs: generate-docs
-	NODE_DEBUG=gh-pages gh-pages -d _book -r git@github.com:mumoshu/kube-aws.gi
+	NODE_DEBUG=gh-pages gh-pages -d _book -r git@github.com:mumoshu/kube-aws.git
