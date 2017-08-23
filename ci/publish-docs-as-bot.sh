@@ -2,11 +2,10 @@
 
 set -ve
 
-echo hello
-
 # Requires the following command beforehand:
 #   $ gem install travis
 #   $ travis login --auto
+$   $ chmod 600 ci/kube-aws-bot-git-ssh-key
 #   $ travis encrypt-file ci/kube-aws-bot-git-ssh-key --repo <your github user or organization>/kube-aws
 
 # And then change this line to the one output from the `travis encrypt-file` command above
