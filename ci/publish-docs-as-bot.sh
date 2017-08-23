@@ -22,10 +22,13 @@ chmod 600 ci/kube-aws-bot-git-ssh-key
 
 echo -e "Host github.com\n\tStrictHostKeyChecking no\nIdentityFile $(pwd)/ci/kube-aws-bot-git-ssh-key\n" >> ~/.ssh/config
 
+set +e
 ssh git@github.com
+status=$?
+set -e
 
-if [ $? -ne 1 ]; then
-  echo ssh connection check to github failed 1>&2
+if [ $status -ne 1 ]; then
+  echo ssh connection check to github failed: ssh command exited with status $status 1>&2
   exit 1
 fi
 
