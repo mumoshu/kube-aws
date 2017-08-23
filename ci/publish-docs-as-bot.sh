@@ -39,4 +39,5 @@ nvm use stable
 
 echo Node.js $(node -v) is being used
 
+echo hello
 make publish-docs
