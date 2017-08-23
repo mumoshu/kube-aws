@@ -39,4 +39,4 @@ fi
 
 echo Node.js $(node -v) is installed/being used
 
-make publish-docs
+REPO=$TRAVIS_REPO_SLUG make publish-docs
