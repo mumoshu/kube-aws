@@ -179,7 +179,6 @@ func NewDefaultCluster() *Cluster {
 		// for base cloudformation stack
 		TLSCADurationDays:           365 * 10,
 		TLSCertDurationDays:         365,
-		CreateRecordSet:             false,
 		RecordSetTTL:                300,
 		SSHAccessAllowedSourceCIDRs: model.DefaultCIDRRanges(),
 		CustomSettings:              make(map[string]interface{}),
@@ -264,7 +263,6 @@ func (c *Cluster) Load() error {
 			c.ExternalDNSName,
 			subnetRefs,
 			c.HostedZoneID,
-			c.CreateRecordSet,
 			c.RecordSetTTL,
 			c.Controller.LoadBalancer.Private,
 		)
@@ -503,7 +501,6 @@ type Cluster struct {
 	FlannelSettings        `yaml:",inline"`
 	AdminAPIEndpointName   string              `yaml:"adminAPIEndpointName,omitempty"`
 	ServiceCIDR            string              `yaml:"serviceCIDR,omitempty"`
-	CreateRecordSet        bool                `yaml:"createRecordSet,omitempty"`
 	RecordSetTTL           int                 `yaml:"recordSetTTL,omitempty"`
 	TLSCADurationDays      int                 `yaml:"tlsCADurationDays,omitempty"`
 	TLSCertDurationDays    int                 `yaml:"tlsCertDurationDays,omitempty"`
@@ -961,28 +958,6 @@ func (c Cluster) validate() error {
 	validClusterNaming := regexp.MustCompile("^[a-zA-Z0-9-:]+$")
 	if !validClusterNaming.MatchString(c.ClusterName) {
 		return fmt.Errorf("clusterName(=%s) is malformed. It must consist only of alphanumeric characters, colons, or hyphens", c.ClusterName)
-	}
-
-	if c.CreateRecordSet {
-		if c.HostedZoneID == "" {
-			return errors.New("hostedZoneID must be specified when createRecordSet is true")
-		}
-
-		if c.RecordSetTTL < 1 {
-			return errors.New("TTL must be at least 1 second")
-		}
-	} else {
-		if c.RecordSetTTL != NewDefaultCluster().RecordSetTTL {
-			return errors.New(
-				"recordSetTTL should not be modified when createRecordSet is false",
-			)
-		}
-
-		if c.HostedZoneID != "" {
-			return errors.New(
-				"hostedZoneId should not be modified when createRecordSet is false",
-			)
-		}
 	}
 
 	var dnsServiceIPAddr net.IP
