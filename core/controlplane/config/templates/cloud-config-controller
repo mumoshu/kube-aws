@@ -826,6 +826,13 @@ write_files:
         sleep 3
       done
 
+      # Service Accounts
+      applyall \
+        "${mfdir}/heapster-sa.yaml" \
+        "${mfdir}/{{ .KubeDns.Provider }}-sa.yaml" \
+        "${mfdir}/kube-proxy-sa.yaml" \
+        {{ if .KubernetesDashboard.Enabled }}"${mfdir}/kubernetes-dashboard-sa.yaml"{{ end }}
+
       {{if .Experimental.KIAMSupport.Enabled }}
       kiam_tls_dir=/etc/kubernetes/ssl/kiam
       vols="${vols} -v $kiam_tls_dir:$kiam_tls_dir"
@@ -894,13 +901,6 @@ write_files:
       applyall \
         "${mfdir}"/{kube-proxy,heapster-config}"-cm.yaml" \
         "${mfdir}/{{ .KubeDns.Provider }}-cm.yaml"
-
-      # Service Accounts
-      applyall \
-        "${mfdir}/heapster-sa.yaml" \
-        "${mfdir}/{{ .KubeDns.Provider }}-sa.yaml" \
-        "${mfdir}/kube-proxy-sa.yaml" \
-        {{ if .KubernetesDashboard.Enabled }}"${mfdir}/kubernetes-dashboard-sa.yaml"{{ end }}
 
       {{ if eq .KubeDns.Provider "coredns" -}}
       applyall \
