@@ -1557,7 +1557,7 @@ write_files:
               # for allocating subnets.
               - name: flannel
                 image: {{ .Kubernetes.Networking.SelfHosting.FlannelImage.RepoWithTag }}
-                command: [ "/opt/bin/flanneld", "--ip-masq", "--kube-subnet-mgr", "--kube-api-url", "http://127.0.0.1:8080" ]
+                command: [ "/opt/bin/flanneld", "--ip-masq", "--kube-subnet-mgr" ]
                 securityContext:
                   privileged: true
                 env:
