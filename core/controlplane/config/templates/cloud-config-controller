@@ -880,6 +880,24 @@ write_files:
       applyall "${rbac}/network-daemonsets.yaml"
       {{- if .Kubernetes.Networking.AmazonVPC.Enabled }}
       applyall "${mfdir}/aws-k8s-cni.yaml"
+
+      node_name=$(curl -s http://169.254.169.254/latest/meta-data/local-hostname)
+      # TODO more flexible configuration of subnet and security groups of pod eni per node pool
+      # See https://github.com/aws/amazon-vpc-cni-k8s/pull/165
+      # /opt/bin/kubectl annotate $node_name k8s.amazonaws.com/eniConfig=group1-pod-netconfig
+
+      source /opt/bin/aws-k8s-cni-eni-config
+
+      cat <<EOF | /opt/bin/kubectl apply -f -
+      apiVersion: crd.k8s.amazonaws.com/v1alpha1
+      kind: ENIConfig
+      metadata:
+        name: controller
+      spec:
+        subnet: ${subnet}
+        securityGroups:
+        - ${security_group}
+      EOF
       {{- else if eq .Kubernetes.Networking.SelfHosting.Type "canal" }}
       ensuredelete "${mfdir}/flannel.yaml"
       applyall "${mfdir}/canal.yaml"
@@ -4957,6 +4975,11 @@ write_files:
                   valueFrom:
                     fieldRef:
                       fieldPath: metadata.namespace
+                # This is omitted in the default setup in amazon-vpc-cni-k8s.
+                # But kube-aws thinks this a must have.
+                # Without this, pods without no network policy enforced has possibility to access to the unauthorized k8s api port!
+                - name: AWS_VPC_K8S_CNI_CUSTOM_NETWORK_CFG
+                  value: "true"
               resources:
                 requests:
                   cpu: 10m
@@ -6023,6 +6046,13 @@ write_files:
 
       log "Finished"
       exit 0
+
+  - path: /opt/bin/kubectl
+    permissions: 0700
+    owner: root:root
+    content: |
+      #!/bin/bash -e
+      /usr/bin/docker run --rm --net=host -v /srv/kubernetes:/srv/kubernetes {{.HyperkubeImage.RepoWithTag}} /hyperkube kubectl "$@"
 
   {{if .Experimental.AuditLog.Enabled -}}
   # Check worker communication by searching audit logs

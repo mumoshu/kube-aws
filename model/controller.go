@@ -17,6 +17,8 @@ type Controller struct {
 	Subnets            Subnets             `yaml:"subnets,omitempty"`
 	CustomFiles        []CustomFile        `yaml:"customFiles,omitempty"`
 	CustomSystemdUnits []CustomSystemdUnit `yaml:"customSystemdUnits,omitempty"`
+	PodSecurityGroup Identifier `yaml:"podSecurityGroup,omitempty"`
+	PodSubnet Identifier `yaml:"podSubnet,omitempty"`
 	NodeSettings       `yaml:",inline"`
 	UnknownKeys        `yaml:",inline"`
 }

@@ -1,8 +1,8 @@
 {{define "Metadata" -}}
 {
-  {{ if .AwsEnvironment.Enabled -}}
   "AWS::CloudFormation::Init" : {
     "configSets" : {
+      {{ if .AwsEnvironment.Enabled -}}
       "aws-environment-env" : {
         "commands": {
           "write-environment": {
@@ -16,9 +16,23 @@
           }
         }
       }
+      {{ end -}}
+      {{ if .Kubernetes.Networking.AmazonVPC.Enabled -}}
+      {{ if .Aws.Environment.Enabled - }},{{ end }}
+      "aws-k8s-cni-eni-config" : {
+        "commands": {
+          "write-environment": {
+            "command": { "Fn::Join" : ["", [ "echo '",
+              {{range $variable, $function := .Kubernetes.Networking.AmazonVPC.WorkerEnvironment .}}
+              "{{$variable}}=", {{$function}} , "\n",
+              {{end}}
+              "' > /opt/bin/aws-k8s-cni-eni-config" ] ] }
+          }
+        }
+      }
+      {{ end }}
     }
   }
-  {{end -}}
 }
 {{end}}
 {{define "SpotFleet"}}

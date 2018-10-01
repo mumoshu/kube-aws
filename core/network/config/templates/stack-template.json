@@ -223,7 +223,111 @@
       },
       "Type": "AWS::EC2::SecurityGroup"
     },
-    {{ if .Kubernetes.Networking.SelfHosting.Typha -}}
+    {{ if .Kubernetes.Networking.AmazonVPC.Enabled -}}
+    {{ range $i, $subnet := .PodNetwork.Subnets }}
+    {{if $subnet.ManageSubnet}}
+    "{{ $subnet.LogicalName }}": {
+      "Properties": {
+        "AvailabilityZone": "{{$subnet.AvailabilityZone}}",
+        "CidrBlock": "{{$subnet.InstanceCIDR}}",
+        "MapPublicIpOnLaunch": false,
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "{{$.ClusterName}}-{{ $subnet.LogicalName}}"
+          }
+        ],
+        "VpcId": {{$.VPCRef}}
+      },
+      "Type": "AWS::EC2::Subnet"
+    },
+    {{ end }}
+    {{ end }}
+
+    {{range $i, $ngw := .PodNetwork.NATGateways}}
+    {{if $ngw.ManageEIP}}
+    ,
+    "{{$ngw.EIPLogicalName}}": {
+      "Properties": {
+        "Domain": "vpc"
+      },
+      "Type": "AWS::EC2::EIP"
+    }
+    {{end}}
+    {{if $ngw.ManageNATGateway}}
+    ,
+    "{{$ngw.LogicalName}}": {
+      "Properties": {
+        "AllocationId": {{$ngw.EIPAllocationIDRef}},
+        "SubnetId": {{$ngw.PublicSubnetRef}}
+      },
+      "Type": "AWS::EC2::NatGateway"
+    }
+    {{end}}
+    {{range $_, $s := $ngw.PrivateSubnets}}
+    {{if $s.ManageRouteToNATGateway}}
+    ,
+    "{{$s.NATGatewayRouteLogicalName}}": {
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "NatGatewayId": {{$ngw.Ref}},
+        "RouteTableId": {{$s.RouteTableRef}}
+      },
+      "Type": "AWS::EC2::Route"
+    }
+    {{ end }}
+    {{ end }}
+
+    "{{ .Kubernetes.Networking.AmazonVPC.PodSecurityGroupLogicalName }}": {
+      "Properties": {
+        "GroupDescription": {
+          "Ref": "AWS::StackName"
+        },
+        "SecurityGroupEgress": [
+          {
+            "CidrIp": "0.0.0.0/0",
+            "FromPort": -1,
+            "IpProtocol": "icmp",
+            "ToPort": -1
+          },
+          {
+            "CidrIp": "0.0.0.0/0",
+            "FromPort": 0,
+            "IpProtocol": "tcp",
+            "ToPort": 65535
+          },
+          {
+            "CidrIp": "0.0.0.0/0",
+            "FromPort": 0,
+            "IpProtocol": "udp",
+            "ToPort": 65535
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "{{$.ClusterName}}-sg-pod"
+          }
+        ],
+        "VpcId": {{.VPCRef}}
+      },
+      "Type": "AWS::EC2::SecurityGroup"
+    },
+    "{{ .Kubernetes.Networking.AmazonVPC.PodSecurityGroupLogicalName }}Ingress": {
+      "Properties": {
+        "FromPort": "0",
+        "GroupId": {
+          "Ref": "{{ .Kubernetes.Networking.AmazonVPC.PodSecurityGroupLogicalName }}"
+        },
+        "IpProtocol": "-1",
+        "SourceSecurityGroupId": {
+          "Ref": "{{ .Kubernetes.Networking.AmazonVPC.PodSecurityGroupLogicalName }}"
+        },
+        "ToPort": "65535"
+      },
+      "Type": "AWS::EC2::SecurityGroupIngress"
+    },
+    {{ else if .Kubernetes.Networking.SelfHosting.Typha -}}
     "SecurityGroupWorkerIngressFromControllerToTypha": {
       "Properties": {
         "FromPort": 5473,
@@ -379,64 +483,6 @@
       },
       "Type": "AWS::EC2::SecurityGroupIngress"
     },
-    {{ if .Kubernetes.Networking.AmazonVPC.Enabled }}
-    "SecurityGroupWorkerToWorker": {
-      "Properties": {
-        "FromPort": "0",
-        "GroupId": {
-          "Ref": "SecurityGroupWorker"
-        },
-        "IpProtocol": "tcp",
-        "SourceSecurityGroupId": {
-          "Ref": "SecurityGroupWorker"
-        },
-        "ToPort": "65535"
-      },
-      "Type": "AWS::EC2::SecurityGroupIngress"
-    },
-    "SecurityGroupWorkerToController": {
-      "Properties": {
-        "FromPort": "0",
-        "GroupId": {
-          "Ref": "SecurityGroupController"
-        },
-        "IpProtocol": "tcp",
-        "SourceSecurityGroupId": {
-          "Ref": "SecurityGroupWorker"
-        },
-        "ToPort": "65535"
-      },
-      "Type": "AWS::EC2::SecurityGroupIngress"
-    },
-    "SecurityGroupControllerToWorker": {
-      "Properties": {
-        "FromPort": "0",
-        "GroupId": {
-          "Ref": "SecurityGroupWorker"
-        },
-        "IpProtocol": "tcp",
-        "SourceSecurityGroupId": {
-          "Ref": "SecurityGroupController"
-        },
-        "ToPort": "65535"
-      },
-      "Type": "AWS::EC2::SecurityGroupIngress"
-    },
-    "SecurityGroupControllerToController": {
-      "Properties": {
-        "FromPort": "0",
-        "GroupId": {
-          "Ref": "SecurityGroupController"
-        },
-        "IpProtocol": "tcp",
-        "SourceSecurityGroupId": {
-          "Ref": "SecurityGroupController"
-        },
-        "ToPort": "65535"
-      },
-      "Type": "AWS::EC2::SecurityGroupIngress"
-    },
-    {{ end }}
     {{if .Addons.Prometheus.SecurityGroupsEnabled}}
     "SecurityGroupWorkerIngressFromWorkerToControllerKubelet": {
       "Properties": {

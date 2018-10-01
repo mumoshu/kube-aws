@@ -43,6 +43,9 @@ type ProvidedConfig struct {
 	Plugins                 model.PluginConfigs `yaml:"kubeAwsPlugins,omitempty"`
 	Private                 bool                `yaml:"private,omitempty"`
 	NodePoolName            string              `yaml:"name,omitempty"`
+	PodSecurityGroup model.Identifier `yaml:"podSecurityGroup,omitempty"`
+	PodSubnet model.Identifier `yaml:"podSubnet,omitempty"`
+
 	ProvidedEncryptService  cfg.EncryptService
 	model.UnknownKeys       `yaml:",inline"`
 }

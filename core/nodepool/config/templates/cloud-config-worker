@@ -1078,6 +1078,17 @@ write_files:
     content: {{.Kubernetes.Networking.AmazonVPC.MaxPodsScript.ToGzip.ToBase64}}
 {{end}}
 
+  - path: /opt/bin/kubectl
+    permissions: 0700
+    owner: root:root
+    content: |
+      #!/bin/bash -e
+      /usr/bin/docker run --rm --net=host \
+        -v /etc/kubernetes:/etc/kubernetes \
+        -v /etc/resolv.conf:/etc/resolv.conf \
+        {{.HyperkubeImage.RepoWithTag}} \
+        /hyperkube kubectl --server={{.APIEndpointURL}}:443 --kubeconfig=/etc/kubernetes/kubeconfig/worker.yaml "$@"
+
 {{ if .Gpu.Nvidia.IsEnabledOn .InstanceType }}
   - path: /opt/nvidia-build/README
     owner: root:root

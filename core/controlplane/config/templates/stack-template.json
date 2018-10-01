@@ -101,6 +101,9 @@
           "configSets" : {
               "etcd-client": [ "etcd-client-env" ]{{if .Experimental.AwsEnvironment.Enabled}},
               "aws-environment": [ "aws-environment-env" ]{{end}}
+              {{ if .Kubernetes.Networking.AmazonVPC.Enabled }},
+              "aws-k8s-cni-eni-config": [ "aws-k8s-cni-eni-config" ]
+              {{end}}
               {{ if .SharedPersistentVolume }},
                 "load-efs-pv": [ "load-efs-pv-env" ]
               {{end}}
@@ -114,6 +117,19 @@
                   "{{$variable}}=", {{$function}} , "\n",
                   {{end}}
                   "' > /etc/aws-environment" ] ] }
+              }
+            }
+          },
+          {{ end }}
+          {{ if .Kubernetes.Networking.AmazonVPC.Enabled }}
+          "aws-k8s-cni-eni-config" : {
+            "commands": {
+              "write-environment": {
+                "command": { "Fn::Join" : ["", [ "echo '",
+                  {{range $variable, $function := .Kubernetes.Networking.AmazonVPC.ControllerEnvironment .Controller}}
+                  "{{$variable}}=", {{$function}} , "\n",
+                  {{end}}
+                  "' > /opt/bin/aws-k8s-cni-eni-config" ] ] }
               }
             }
           },
