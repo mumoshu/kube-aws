@@ -86,64 +86,59 @@ spec:
       stacks:
         controlPlane:
           resources:
-            append:
-              inline: |
-                {
-                  "QueueFromMyPlugin": {
-                    "Type": "AWS::SQS::Queue",
-                    "Properties": {
-                      "QueueName": {{quote .Values.queue.name}}
-                    }
+            inline: |
+              {
+                "QueueFromMyPlugin": {
+                  "Type": "AWS::SQS::Queue",
+                  "Properties": {
+                    "QueueName": {{quote .Values.queue.name}}
                   }
                 }
+              }
         nodePool:
           resources:
-            append:
-              inline: |
-                {
-                  "QueueFromMyPlugin": {
-                    "Type": "AWS::SQS::Queue",
-                    "Properties": {
-                      "QueueName": {{quote .Values.queue.name}}
-                    }
+            inline: |
+              {
+                "QueueFromMyPlugin": {
+                  "Type": "AWS::SQS::Queue",
+                  "Properties": {
+                    "QueueName": {{quote .Values.queue.name}}
                   }
                 }
+              }
         root:
           resources:
-            append:
-              inline: |
-                {
-                  "QueueFromMyPlugin": {
-                    "Type": "AWS::SQS::Queue",
-                    "Properties": {
-                    "QueueName": {{quote .Values.queue.name}}
-                    }
+            inline: |
+              {
+                "QueueFromMyPlugin": {
+                  "Type": "AWS::SQS::Queue",
+                  "Properties": {
+                  "QueueName": {{quote .Values.queue.name}}
                   }
                 }
+              }
         etcd:
           resources:
-            append:
-              inline: |
-                {
-                  "QueueFromMyPlugin": {
-                    "Type": "AWS::SQS::Queue",
-                    "Properties": {
-                    "QueueName": {{quote .Values.queue.name}}
-                    }
+            inline: |
+              {
+                "QueueFromMyPlugin": {
+                  "Type": "AWS::SQS::Queue",
+                  "Properties": {
+                  "QueueName": {{quote .Values.queue.name}}
                   }
                 }
+              }
         network:
           resources:
-            append:
-              inline: |
-                {
-                  "QueueFromMyPlugin": {
-                    "Type": "AWS::SQS::Queue",
-                    "Properties": {
-                    "QueueName": {{quote .Values.queue.name}}
-                    }
+            inline: |
+              {
+                "QueueFromMyPlugin": {
+                  "Type": "AWS::SQS::Queue",
+                  "Properties": {
+                  "QueueName": {{quote .Values.queue.name}}
                   }
                 }
+              }
     kubernetes:
       apiserver:
         flags:
@@ -172,17 +167,13 @@ spec:
               contents:
                 inline: |
                   [Unit]
-          storage:
-            files:
-            - path: /var/kube-aws/bar.txt
-              permissions: 0644
-              contents:
-                inline: controller-bar
-            - path: /var/kube-aws/baz.txt
-              permissions: 0644
-              contents:
-                source:
-                  path: assets/controller/baz.txt
+          files:
+          - path: /var/kube-aws/bar.txt
+            permissions: 0644
+            inline: controller-bar
+          - path: /var/kube-aws/baz.txt
+            permissions: 0644
+            localPath: assets/controller/baz.txt
         etcd:
           iam:
             policy:
@@ -198,17 +189,13 @@ spec:
               contents:
                 inline: |
                   [Unit]
-          storage:
-            files:
-            - path: /var/kube-aws/bar.txt
-              permissions: 0644
-              contents:
-                inline: etcd-bar
-            - path: /var/kube-aws/baz.txt
-              permissions: 0644
-              contents:
-                source:
-                  path: assets/etcd/baz.txt
+          files:
+          - path: /var/kube-aws/bar.txt
+            permissions: 0644
+            inline: etcd-bar
+          - path: /var/kube-aws/baz.txt
+            permissions: 0644
+            localPath: assets/etcd/baz.txt
         worker:
           iam:
             policy:
@@ -229,17 +216,13 @@ spec:
               contents:
                 inline: |
                   [Unit]
-          storage:
-            files:
-            - path: /var/kube-aws/bar.txt
-              permissions: 0644
-              contents:
-                inline: worker-bar
-            - path: /var/kube-aws/baz.txt
-              permissions: 0644
-              contents:
-                source:
-                  path: assets/worker/baz.txt
+          files:
+          - path: /var/kube-aws/bar.txt
+            permissions: 0644
+            inline: worker-bar
+          - path: /var/kube-aws/baz.txt
+            permissions: 0644
+            localPath: assets/worker/baz.txt
 
 `,
 				},

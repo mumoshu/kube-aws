@@ -9,6 +9,7 @@ type StackConfig struct {
 	*ComputedConfig
 	UserDataWorker model.UserData
 	StackTemplateOptions
+	CfnInitConfigSets map[string]interface{}
 	ExtraCfnResources map[string]interface{}
 }
 

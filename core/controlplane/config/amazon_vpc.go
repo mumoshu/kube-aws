@@ -3,14 +3,14 @@ package config
 import (
 	"fmt"
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/awsutils"
-	"github.com/kubernetes-incubator/kube-aws/node"
+	"github.com/kubernetes-incubator/kube-aws/provisioner"
 )
 
 type AmazonVPC struct {
 	Enabled bool `yaml:"enabled"`
 }
 
-func (a AmazonVPC) MaxPodsScript() node.UploadedFileContent {
+func (a AmazonVPC) MaxPodsScript() provisioner.Content {
 	script := `#!/usr/bin/env bash
 
 set -e
@@ -54,5 +54,5 @@ max_pods=$(( (enis * (ips_per_eni - 1)) + 2 ))
 
 printf $max_pods
 `
-	return node.NewUploadedFileContent([]byte(script))
+	return provisioner.NewBinaryContent([]byte(script))
 }

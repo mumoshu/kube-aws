@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/kubernetes-incubator/kube-aws/model"
+	"github.com/kubernetes-incubator/kube-aws/provisioner"
 )
 
 // A plugin consists of two parts: a set of metadata and a spec
@@ -63,14 +64,14 @@ func (m Metadata) Validate() error {
 }
 
 // Spec is the specification of a kube-aws plugin
-// A spec consists of two parts: Configuration and Command
+// A spec consists of two parts: Cluster and Command
 type Spec struct {
-	// Configuration is the configuration part of a plugin which is used to append arbitrary configs into various resources managed by kube-aws
-	Configuration `yaml:"configuration,omitempty"`
+	// Cluster is the configuration part of a plugin which is used to append arbitrary configs into various resources managed by kube-aws
+	Cluster `yaml:"cluster,omitempty"`
 }
 
-// Configuration is the configuration part of a plugin which is used to append arbitrary configs into various resources managed by kube-aws
-type Configuration struct {
+// Cluster is the configuration part of a plugin which is used to append arbitrary configs into various resources managed by kube-aws
+type Cluster struct {
 	// Values represents the values available in templates
 	Values `yaml:"values,omitempty"`
 	// CloudFormation represents customizations to CloudFormation-related settings and configurations
@@ -79,8 +80,10 @@ type Configuration struct {
 	Helm `yaml:"helm,omitempty"`
 	// Kubernetes represents what are injected into the resulting K8S
 	Kubernetes `yaml:"kubernetes,omitempty"`
-	// Node represents what are injected into each node managed by kube-aws
-	Node `yaml:"node,omitempty"`
+	// Machine represents what are injected into each machines managed by kube-aws
+	Machine `yaml:"machine,omitempty"`
+	// PKI extends the cluster PKI managed by kube-aws
+	PKI `yaml:"pki,omitempty"`
 }
 
 // CloudFormation represents customizations to CloudFormation-related settings and configurations
@@ -104,15 +107,11 @@ type Stack struct {
 }
 
 type Resources struct {
-	Append `yaml:"append,omitempty"`
+	provisioner.RemoteFileSpec `yaml:",inline"`
 }
 
 type Outputs struct {
-	Append `yaml:"append,omitempty"`
-}
-
-type Append struct {
-	Contents `yaml:",inline"`
+	provisioner.RemoteFileSpec `yaml:",inline"`
 }
 
 type Helm struct {
@@ -191,13 +190,12 @@ type APIServerVolume struct {
 type KubernetesManifests []KubernetesManifest
 
 type KubernetesManifest struct {
-	Name     string `yaml:"name,omitempty"`
-	Contents `yaml:"contents,omitempty"`
+	Name                       string `yaml:"name,omitempty"`
+	provisioner.RemoteFileSpec `yaml:",inline"`
 }
 
 type Contents struct {
-	Inline string `yaml:"inline,omitempty"`
-	Source `yaml:"source,omitempty"`
+	provisioner.RemoteFileSpec `yaml:",inline"`
 	// TODO Better naming
 	UnknownKeys map[string]interface{} `yaml:",inline"`
 }
@@ -206,48 +204,29 @@ type Source struct {
 	Path string `yaml:"path,omitempty"`
 }
 
+type Machine struct {
+	Roles MachineRoles `yaml:"roles,omitempty"`
+}
+
+type MachineRoles struct {
+	Controller Node        `yaml:"controller,omitempty"`
+	Etcd       MachineSpec `yaml:"etcd,omitempty"`
+	Worker     Node        `yaml:"worker,omitempty"`
+}
+
+// Node is a worker machine in Kubernetes
 type Node struct {
-	Roles NodeRoles `yaml:"roles,omitempty"`
+	MachineSpec `yaml:",inline"`
+	Kubelet     `yaml:"kubelet,omitempty"`
 }
 
-type NodeRoles struct {
-	Controller `yaml:"controller,omitempty"`
-	Etcd       `yaml:"etcd,omitempty"`
-	Worker     `yaml:"worker,omitempty"`
-}
-
-type Controller struct {
-	CommonNodeConfig `yaml:",inline"`
-	Kubelet          `yaml:"kubelet,omitempty"`
-}
-
-type Etcd struct {
-	CommonNodeConfig `yaml:",inline"`
-}
-
-type Worker struct {
-	CommonNodeConfig `yaml:",inline"`
-	Kubelet          `yaml:"kubelet,omitempty"`
-}
-
-type CommonNodeConfig struct {
-	Storage `yaml:"storage,omitempty"`
+type MachineSpec struct {
+	Files   `yaml:"files,omitempty"`
 	IAM     `yaml:"iam,omitempty"`
 	Systemd `yaml:"systemd,omitempty"`
 }
 
-type Storage struct {
-	Files `yaml:"files,omitempty"`
-}
-
-type Files []File
-
-type File struct {
-	Path     string `yaml:"path,omitempty"`
-	Contents `yaml:"contents,omitempty"`
-	//Mode     string `yaml:"mode,omitempty"`
-	Permissions uint `yaml:"permissions,omitempty"`
-}
+type Files []provisioner.RemoteFileSpec
 
 type IAM struct {
 	Policy model.IAMPolicy `yaml:"policy,omitempty"`
@@ -270,8 +249,23 @@ type SystemdUnit struct {
 // Keys must be included in: nodeLabels, featureGates, etc
 // kubelet can be configured per-node-pool-basic hence a part of WorkerSettings
 type Kubelet struct {
-	FeatureGates FeatureGates `yaml:"featureGates,omitempty"`
-	NodeLabels   NodeLabels   `yaml:"nodeLabels,omitempty"`
+	FeatureGates FeatureGates  `yaml:"featureGates,omitempty"`
+	NodeLabels   NodeLabels    `yaml:"nodeLabels,omitempty"`
+	Kubeconfig   string        `yaml:"kubeconfig,omitempty"`
+	Mounts       []VolumeMount `yaml:"mounts,omitempty"`
+}
+
+type VolumeMount string
+
+func (m VolumeMount) ToRktRunArgs() []string {
+	args := []string{}
+	volname := strings.Replace(strings.TrimSuffix(string(m), "/"), "/", "-", -1)
+	args = append(
+		args,
+		fmt.Sprintf("--mount volume=%s,target=%s", volname, string(m)),
+		fmt.Sprintf("--volume %s,kind=host,source=%s", volname, string(m)),
+	)
+	return args
 }
 
 type FeatureGates map[string]string

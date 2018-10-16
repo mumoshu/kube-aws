@@ -1,0 +1,72 @@
+metadata:
+  name: aws-iam-authenticator
+  version: 0.1
+spec:
+  cluster:
+    pki:
+      keypairs:
+      - name: aws-iam-authenticator
+        dnsNames:
+        - localhost
+        ipAddresses:
+        - 0.0.0.0
+        - 127.0.0.1
+        duration: 8760h
+        usages:
+        - ca
+        - server
+    kubernetes:
+      manifests:
+      - source:
+          path: manifests/aws-auth-cm.yaml
+      - source:
+          path: manifests/daemonset.yaml
+      apiserver:
+        flags:
+        - name: authentication-token-webhook-config-file
+          value: /etc/kubernetes/heptio-authenticator-aws/kubeconfig.yaml
+    machine:
+      roles:
+        controller:
+          kubelet:
+            kubeconfig: /etc/kubernetes/kubeconfig/aws-iam-auth.yaml
+            mounts:
+            - /opt/bin
+          files:
+          - path: "/opt/bin/heptio-authenticator-aws"
+            permissions: 0755
+            type: binary
+            source:
+              path: "files/aws-iam-auth/opt/bin/heptio-authenticator-aws"
+              url: "https://github.com/kubernetes-sigs/aws-iam-authenticator/releases/download/v0.3.0/heptio-authenticator-aws_0.3.0_linux_amd64"
+          - path: /etc/kubernetes/kubeconfig/aws-iam-auth.yaml
+            permissions: 0644
+            source:
+              path: files/controller-kubeconfig.yaml
+          - path: /etc/kubernetes/heptio-authenticator-aws/kubeconfig.yaml
+            permissions: 0644
+            source:
+              path: files/authentication-token-webhook-config.yaml
+          - path: /srv/kubernetes/aws-iam-authenticator-key.pem
+            source:
+              path: credentials/aws-iam-authenticator-key.pem
+            encrypted: true
+          - path: /srv/kubernetes/aws-iam-authenticator/cert.pem
+            source:
+              path: credentials/aws-iam-authenticator.pem
+        worker:
+          kubelet:
+            kubeconfig: /etc/kubernetes/kubeconfig/aws-iam-auth.yaml
+            mounts:
+            - /opt/bin
+          files:
+          - path: "/opt/bin/heptio-authenticator-aws"
+            permissions: 0755
+            type: binary
+            source:
+               path: "files/aws-iam-auth/opt/bin/heptio-authenticator-aws"
+               url: "https://github.com/kubernetes-sigs/aws-iam-authenticator/releases/download/v0.3.0/heptio-authenticator-aws_0.3.0_linux_amd64"
+          - path: /etc/kubernetes/kubeconfig/aws-iam-auth.yaml
+            permissions: 0644
+            source:
+              path: files/worker-kubeconfig.yaml

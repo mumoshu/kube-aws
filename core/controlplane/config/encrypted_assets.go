@@ -15,12 +15,15 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kms"
+	"github.com/kubernetes-incubator/kube-aws/credential"
 	"github.com/kubernetes-incubator/kube-aws/gzipcompressor"
 	"github.com/kubernetes-incubator/kube-aws/logger"
 	"github.com/kubernetes-incubator/kube-aws/netutil"
-	"github.com/kubernetes-incubator/kube-aws/tlscerts"
-	"github.com/kubernetes-incubator/kube-aws/tlsutil"
+	"github.com/kubernetes-incubator/kube-aws/pki"
 )
+
+type PlaintextFile = credential.PlaintextFile
+type EncryptedFile = credential.EncryptedFile
 
 type RawAssetsOnMemory struct {
 	// PEM encoded TLS assets.
@@ -60,74 +63,74 @@ type RawAssetsOnMemory struct {
 
 type RawAssetsOnDisk struct {
 	// PEM encoded TLS assets.
-	CACert                    RawCredentialOnDisk
-	CAKey                     RawCredentialOnDisk
-	WorkerCACert              RawCredentialOnDisk
-	WorkerCAKey               RawCredentialOnDisk
-	APIServerCert             RawCredentialOnDisk
-	APIServerKey              RawCredentialOnDisk
-	APIServerAggregatorCert   RawCredentialOnDisk
-	APIServerAggregatorKey    RawCredentialOnDisk
-	KubeControllerManagerCert RawCredentialOnDisk
-	KubeControllerManagerKey  RawCredentialOnDisk
-	KubeSchedulerCert         RawCredentialOnDisk
-	KubeSchedulerKey          RawCredentialOnDisk
-	WorkerCert                RawCredentialOnDisk
-	WorkerKey                 RawCredentialOnDisk
-	AdminCert                 RawCredentialOnDisk
-	AdminKey                  RawCredentialOnDisk
-	EtcdCert                  RawCredentialOnDisk
-	EtcdClientCert            RawCredentialOnDisk
-	EtcdKey                   RawCredentialOnDisk
-	EtcdClientKey             RawCredentialOnDisk
-	EtcdTrustedCA             RawCredentialOnDisk
-	KIAMServerCert            RawCredentialOnDisk
-	KIAMServerKey             RawCredentialOnDisk
-	KIAMAgentCert             RawCredentialOnDisk
-	KIAMAgentKey              RawCredentialOnDisk
-	KIAMCACert                RawCredentialOnDisk
-	ServiceAccountKey         RawCredentialOnDisk
+	CACert                    PlaintextFile
+	CAKey                     PlaintextFile
+	WorkerCACert              PlaintextFile
+	WorkerCAKey               PlaintextFile
+	APIServerCert             PlaintextFile
+	APIServerKey              PlaintextFile
+	APIServerAggregatorCert   PlaintextFile
+	APIServerAggregatorKey    PlaintextFile
+	KubeControllerManagerCert PlaintextFile
+	KubeControllerManagerKey  PlaintextFile
+	KubeSchedulerCert         PlaintextFile
+	KubeSchedulerKey          PlaintextFile
+	WorkerCert                PlaintextFile
+	WorkerKey                 PlaintextFile
+	AdminCert                 PlaintextFile
+	AdminKey                  PlaintextFile
+	EtcdCert                  PlaintextFile
+	EtcdClientCert            PlaintextFile
+	EtcdKey                   PlaintextFile
+	EtcdClientKey             PlaintextFile
+	EtcdTrustedCA             PlaintextFile
+	KIAMServerCert            PlaintextFile
+	KIAMServerKey             PlaintextFile
+	KIAMAgentCert             PlaintextFile
+	KIAMAgentKey              PlaintextFile
+	KIAMCACert                PlaintextFile
+	ServiceAccountKey         PlaintextFile
 
 	// Other assets.
-	AuthTokens        RawCredentialOnDisk
-	TLSBootstrapToken RawCredentialOnDisk
-	EncryptionConfig  RawCredentialOnDisk
+	AuthTokens        PlaintextFile
+	TLSBootstrapToken PlaintextFile
+	EncryptionConfig  PlaintextFile
 }
 
 type EncryptedAssetsOnDisk struct {
 	// Encrypted PEM encoded TLS assets.
-	CACert                    EncryptedCredentialOnDisk
-	CAKey                     EncryptedCredentialOnDisk
-	WorkerCACert              EncryptedCredentialOnDisk
-	WorkerCAKey               EncryptedCredentialOnDisk
-	APIServerCert             EncryptedCredentialOnDisk
-	APIServerKey              EncryptedCredentialOnDisk
-	APIServerAggregatorCert   EncryptedCredentialOnDisk
-	APIServerAggregatorKey    EncryptedCredentialOnDisk
-	KubeControllerManagerCert EncryptedCredentialOnDisk
-	KubeControllerManagerKey  EncryptedCredentialOnDisk
-	KubeSchedulerCert         EncryptedCredentialOnDisk
-	KubeSchedulerKey          EncryptedCredentialOnDisk
-	WorkerCert                EncryptedCredentialOnDisk
-	WorkerKey                 EncryptedCredentialOnDisk
-	AdminCert                 EncryptedCredentialOnDisk
-	AdminKey                  EncryptedCredentialOnDisk
-	EtcdCert                  EncryptedCredentialOnDisk
-	EtcdClientCert            EncryptedCredentialOnDisk
-	EtcdKey                   EncryptedCredentialOnDisk
-	EtcdClientKey             EncryptedCredentialOnDisk
-	EtcdTrustedCA             EncryptedCredentialOnDisk
-	KIAMServerCert            EncryptedCredentialOnDisk
-	KIAMServerKey             EncryptedCredentialOnDisk
-	KIAMAgentCert             EncryptedCredentialOnDisk
-	KIAMAgentKey              EncryptedCredentialOnDisk
-	KIAMCACert                EncryptedCredentialOnDisk
-	ServiceAccountKey         EncryptedCredentialOnDisk
+	CACert                    EncryptedFile
+	CAKey                     EncryptedFile
+	WorkerCACert              EncryptedFile
+	WorkerCAKey               EncryptedFile
+	APIServerCert             EncryptedFile
+	APIServerKey              EncryptedFile
+	APIServerAggregatorCert   EncryptedFile
+	APIServerAggregatorKey    EncryptedFile
+	KubeControllerManagerCert EncryptedFile
+	KubeControllerManagerKey  EncryptedFile
+	KubeSchedulerCert         EncryptedFile
+	KubeSchedulerKey          EncryptedFile
+	WorkerCert                EncryptedFile
+	WorkerKey                 EncryptedFile
+	AdminCert                 EncryptedFile
+	AdminKey                  EncryptedFile
+	EtcdCert                  EncryptedFile
+	EtcdClientCert            EncryptedFile
+	EtcdKey                   EncryptedFile
+	EtcdClientKey             EncryptedFile
+	EtcdTrustedCA             EncryptedFile
+	KIAMServerCert            EncryptedFile
+	KIAMServerKey             EncryptedFile
+	KIAMAgentCert             EncryptedFile
+	KIAMAgentKey              EncryptedFile
+	KIAMCACert                EncryptedFile
+	ServiceAccountKey         EncryptedFile
 
 	// Other encrypted assets.
-	AuthTokens        EncryptedCredentialOnDisk
-	TLSBootstrapToken EncryptedCredentialOnDisk
-	EncryptionConfig  EncryptedCredentialOnDisk
+	AuthTokens        EncryptedFile
+	TLSBootstrapToken EncryptedFile
+	EncryptionConfig  EncryptedFile
 }
 
 type CompactAssets struct {
@@ -169,7 +172,7 @@ type CompactAssets struct {
 }
 
 func (c *Cluster) NewTLSCA() (*rsa.PrivateKey, *x509.Certificate, error) {
-	caKey, err := tlsutil.NewPrivateKey()
+	caKey, err := pki.NewPrivateKey()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -177,12 +180,12 @@ func (c *Cluster) NewTLSCA() (*rsa.PrivateKey, *x509.Certificate, error) {
 	// Convert from days to time.Duration
 	caDuration := time.Duration(c.TLSCADurationDays) * 24 * time.Hour
 
-	caConfig := tlsutil.CACertConfig{
+	caConfig := pki.CACertConfig{
 		CommonName:   "kube-ca",
 		Organization: "kube-aws",
 		Duration:     caDuration,
 	}
-	caCert, err := tlsutil.NewSelfSignedCACertificate(caConfig, caKey)
+	caCert, err := pki.NewSelfSignedCACertificate(caConfig, caKey)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -214,14 +217,14 @@ func (c *Cluster) NewAssetsOnDisk(dir string, o CredentialsOptions) (*RawAssetsO
 		if caKeyBytes, err := ioutil.ReadFile(o.CaKeyPath); err != nil {
 			return nil, fmt.Errorf("failed reading ca key file %s : %v", o.CaKeyPath, err)
 		} else {
-			if caKey, err = tlsutil.DecodePrivateKeyPEM(caKeyBytes); err != nil {
+			if caKey, err = pki.DecodePrivateKeyPEM(caKeyBytes); err != nil {
 				return nil, fmt.Errorf("failed parsing ca key: %v", err)
 			}
 		}
 		if caCertBytes, err := ioutil.ReadFile(o.CaCertPath); err != nil {
 			return nil, fmt.Errorf("failed reading ca cert file %s : %v", o.CaCertPath, err)
 		} else {
-			if caCert, err = tlsutil.DecodeCertificatePEM(caCertBytes); err != nil {
+			if caCert, err = pki.DecodeCertificatePEM(caCertBytes); err != nil {
 				return nil, fmt.Errorf("failed parsing ca cert: %v", err)
 			}
 		}
@@ -265,7 +268,7 @@ func (c *Cluster) NewAssetsOnMemory(caKey *rsa.PrivateKey, caCert *x509.Certific
 	keys := make([]*rsa.PrivateKey, 11)
 	var err error
 	for i := range keys {
-		if keys[i], err = tlsutil.NewPrivateKey(); err != nil {
+		if keys[i], err = pki.NewPrivateKey(); err != nil {
 			return nil, err
 		}
 	}
@@ -278,7 +281,7 @@ func (c *Cluster) NewAssetsOnMemory(caKey *rsa.PrivateKey, caCert *x509.Certific
 	}
 	kubernetesServiceIPAddr := netutil.IncrementIP(serviceNet.IP)
 
-	apiServerConfig := tlsutil.ServerCertConfig{
+	apiServerConfig := pki.ServerCertConfig{
 		CommonName: "kube-apiserver",
 		DNSNames: append(
 			[]string{
@@ -297,12 +300,12 @@ func (c *Cluster) NewAssetsOnMemory(caKey *rsa.PrivateKey, caCert *x509.Certific
 		},
 		Duration: certDuration,
 	}
-	apiServerCert, err := tlsutil.NewSignedServerCertificate(apiServerConfig, apiServerKey, caCert, caKey)
+	apiServerCert, err := pki.NewSignedServerCertificate(apiServerConfig, apiServerKey, caCert, caKey)
 	if err != nil {
 		return nil, err
 	}
 
-	etcdConfig := tlsutil.ServerCertConfig{
+	etcdConfig := pki.ServerCertConfig{
 		CommonName: "kube-etcd",
 		DNSNames:   c.EtcdCluster().DNSNames(),
 		// etcd https client/peer interfaces are not exposed externally
@@ -310,12 +313,12 @@ func (c *Cluster) NewAssetsOnMemory(caKey *rsa.PrivateKey, caCert *x509.Certific
 		Duration: certDuration,
 	}
 
-	etcdCert, err := tlsutil.NewSignedServerCertificate(etcdConfig, etcdKey, caCert, caKey)
+	etcdCert, err := pki.NewSignedServerCertificate(etcdConfig, etcdKey, caCert, caKey)
 	if err != nil {
 		return nil, err
 	}
 
-	workerConfig := tlsutil.ClientCertConfig{
+	workerConfig := pki.ClientCertConfig{
 		CommonName: "kube-worker",
 		DNSNames: []string{
 			fmt.Sprintf("*.%s.compute.internal", c.Region),
@@ -323,54 +326,54 @@ func (c *Cluster) NewAssetsOnMemory(caKey *rsa.PrivateKey, caCert *x509.Certific
 		},
 		Duration: certDuration,
 	}
-	workerCert, err := tlsutil.NewSignedClientCertificate(workerConfig, workerKey, caCert, caKey)
+	workerCert, err := pki.NewSignedClientCertificate(workerConfig, workerKey, caCert, caKey)
 	if err != nil {
 		return nil, err
 	}
 
-	etcdClientConfig := tlsutil.ClientCertConfig{
+	etcdClientConfig := pki.ClientCertConfig{
 		CommonName: "kube-etcd-client",
 		Duration:   certDuration,
 	}
 
-	etcdClientCert, err := tlsutil.NewSignedClientCertificate(etcdClientConfig, etcdClientKey, caCert, caKey)
+	etcdClientCert, err := pki.NewSignedClientCertificate(etcdClientConfig, etcdClientKey, caCert, caKey)
 	if err != nil {
 		return nil, err
 	}
 
-	adminConfig := tlsutil.ClientCertConfig{
+	adminConfig := pki.ClientCertConfig{
 		CommonName:   "kube-admin",
 		Organization: []string{"system:masters"},
 		Duration:     certDuration,
 	}
-	adminCert, err := tlsutil.NewSignedClientCertificate(adminConfig, adminKey, caCert, caKey)
+	adminCert, err := pki.NewSignedClientCertificate(adminConfig, adminKey, caCert, caKey)
 	if err != nil {
 		return nil, err
 	}
 
-	kubeControllerManagerConfig := tlsutil.ClientCertConfig{
+	kubeControllerManagerConfig := pki.ClientCertConfig{
 		CommonName: "system:kube-controller-manager",
 		Duration:   certDuration,
 	}
-	kubeControllerManagerCert, err := tlsutil.NewSignedClientCertificate(kubeControllerManagerConfig, kubeControllerManagerKey, caCert, caKey)
+	kubeControllerManagerCert, err := pki.NewSignedClientCertificate(kubeControllerManagerConfig, kubeControllerManagerKey, caCert, caKey)
 	if err != nil {
 		return nil, err
 	}
 
-	kubeSchedulerConfig := tlsutil.ClientCertConfig{
+	kubeSchedulerConfig := pki.ClientCertConfig{
 		CommonName: "system:kube-scheduler",
 		Duration:   certDuration,
 	}
-	kubeSchedulerCert, err := tlsutil.NewSignedClientCertificate(kubeSchedulerConfig, kubeSchedulerKey, caCert, caKey)
+	kubeSchedulerCert, err := pki.NewSignedClientCertificate(kubeSchedulerConfig, kubeSchedulerKey, caCert, caKey)
 	if err != nil {
 		return nil, err
 	}
 
-	apiServerAggregatorConfig := tlsutil.ClientCertConfig{
+	apiServerAggregatorConfig := pki.ClientCertConfig{
 		CommonName: "aggregator",
 		Duration:   certDuration,
 	}
-	apiServerAggregatorCert, err := tlsutil.NewSignedClientCertificate(apiServerAggregatorConfig, apiServerAggregatorKey, caCert, caKey)
+	apiServerAggregatorCert, err := pki.NewSignedClientCertificate(apiServerAggregatorConfig, apiServerAggregatorKey, caCert, caKey)
 	if err != nil {
 		return nil, err
 	}
@@ -387,25 +390,25 @@ func (c *Cluster) NewAssetsOnMemory(caKey *rsa.PrivateKey, caCert *x509.Certific
 	}
 
 	r := &RawAssetsOnMemory{
-		CACert:                    tlsutil.EncodeCertificatePEM(caCert),
-		APIServerCert:             tlsutil.EncodeCertificatePEM(apiServerCert),
-		KubeControllerManagerCert: tlsutil.EncodeCertificatePEM(kubeControllerManagerCert),
-		KubeSchedulerCert:         tlsutil.EncodeCertificatePEM(kubeSchedulerCert),
-		WorkerCert:                tlsutil.EncodeCertificatePEM(workerCert),
-		AdminCert:                 tlsutil.EncodeCertificatePEM(adminCert),
-		EtcdCert:                  tlsutil.EncodeCertificatePEM(etcdCert),
-		EtcdClientCert:            tlsutil.EncodeCertificatePEM(etcdClientCert),
-		APIServerAggregatorCert:   tlsutil.EncodeCertificatePEM(apiServerAggregatorCert),
-		CAKey:                     tlsutil.EncodePrivateKeyPEM(caKey),
-		APIServerKey:              tlsutil.EncodePrivateKeyPEM(apiServerKey),
-		KubeControllerManagerKey:  tlsutil.EncodePrivateKeyPEM(kubeControllerManagerKey),
-		KubeSchedulerKey:          tlsutil.EncodePrivateKeyPEM(kubeSchedulerKey),
-		WorkerKey:                 tlsutil.EncodePrivateKeyPEM(workerKey),
-		AdminKey:                  tlsutil.EncodePrivateKeyPEM(adminKey),
-		EtcdKey:                   tlsutil.EncodePrivateKeyPEM(etcdKey),
-		EtcdClientKey:             tlsutil.EncodePrivateKeyPEM(etcdClientKey),
-		ServiceAccountKey:         tlsutil.EncodePrivateKeyPEM(serviceAccountKey),
-		APIServerAggregatorKey:    tlsutil.EncodePrivateKeyPEM(apiServerAggregatorKey),
+		CACert:                    pki.EncodeCertificatePEM(caCert),
+		APIServerCert:             pki.EncodeCertificatePEM(apiServerCert),
+		KubeControllerManagerCert: pki.EncodeCertificatePEM(kubeControllerManagerCert),
+		KubeSchedulerCert:         pki.EncodeCertificatePEM(kubeSchedulerCert),
+		WorkerCert:                pki.EncodeCertificatePEM(workerCert),
+		AdminCert:                 pki.EncodeCertificatePEM(adminCert),
+		EtcdCert:                  pki.EncodeCertificatePEM(etcdCert),
+		EtcdClientCert:            pki.EncodeCertificatePEM(etcdClientCert),
+		APIServerAggregatorCert:   pki.EncodeCertificatePEM(apiServerAggregatorCert),
+		CAKey:                     pki.EncodePrivateKeyPEM(caKey),
+		APIServerKey:              pki.EncodePrivateKeyPEM(apiServerKey),
+		KubeControllerManagerKey:  pki.EncodePrivateKeyPEM(kubeControllerManagerKey),
+		KubeSchedulerKey:          pki.EncodePrivateKeyPEM(kubeSchedulerKey),
+		WorkerKey:                 pki.EncodePrivateKeyPEM(workerKey),
+		AdminKey:                  pki.EncodePrivateKeyPEM(adminKey),
+		EtcdKey:                   pki.EncodePrivateKeyPEM(etcdKey),
+		EtcdClientKey:             pki.EncodePrivateKeyPEM(etcdClientKey),
+		ServiceAccountKey:         pki.EncodePrivateKeyPEM(serviceAccountKey),
+		APIServerAggregatorKey:    pki.EncodePrivateKeyPEM(apiServerAggregatorKey),
 
 		AuthTokens:        []byte(authTokens),
 		TLSBootstrapToken: []byte(tlsBootstrapToken),
@@ -414,16 +417,16 @@ func (c *Cluster) NewAssetsOnMemory(caKey *rsa.PrivateKey, caCert *x509.Certific
 
 	if kiamEnabled {
 		// See https://github.com/uswitch/kiam/blob/master/docs/agent.json
-		agentConfig := tlsutil.ClientCertConfig{
+		agentConfig := pki.ClientCertConfig{
 			CommonName: "Kiam Agent",
 			Duration:   certDuration,
 		}
-		kiamAgentCert, err := tlsutil.NewSignedClientCertificate(agentConfig, kiamAgentKey, caCert, caKey)
+		kiamAgentCert, err := pki.NewSignedClientCertificate(agentConfig, kiamAgentKey, caCert, caKey)
 		if err != nil {
 			return nil, err
 		}
 		// See https://github.com/uswitch/kiam/blob/master/docs/server.json
-		serverConfig := tlsutil.ClientCertConfig{
+		serverConfig := pki.ClientCertConfig{
 			CommonName: "Kiam Server",
 			DNSNames: append(
 				[]string{
@@ -434,16 +437,16 @@ func (c *Cluster) NewAssetsOnMemory(caKey *rsa.PrivateKey, caCert *x509.Certific
 			),
 			Duration: certDuration,
 		}
-		kiamServerCert, err := tlsutil.NewSignedKIAMCertificate(serverConfig, kiamServerKey, caCert, caKey)
+		kiamServerCert, err := pki.NewSignedKIAMCertificate(serverConfig, kiamServerKey, caCert, caKey)
 		if err != nil {
 			return nil, err
 		}
 
-		r.KIAMCACert = tlsutil.EncodeCertificatePEM(caCert)
-		r.KIAMAgentCert = tlsutil.EncodeCertificatePEM(kiamAgentCert)
-		r.KIAMAgentKey = tlsutil.EncodePrivateKeyPEM(kiamAgentKey)
-		r.KIAMServerCert = tlsutil.EncodeCertificatePEM(kiamServerCert)
-		r.KIAMServerKey = tlsutil.EncodePrivateKeyPEM(kiamServerKey)
+		r.KIAMCACert = pki.EncodeCertificatePEM(caCert)
+		r.KIAMAgentCert = pki.EncodeCertificatePEM(kiamAgentCert)
+		r.KIAMAgentKey = pki.EncodePrivateKeyPEM(kiamAgentKey)
+		r.KIAMServerCert = pki.EncodeCertificatePEM(kiamServerCert)
+		r.KIAMServerKey = pki.EncodePrivateKeyPEM(kiamServerKey)
 	}
 
 	return r, nil
@@ -466,7 +469,7 @@ func ReadRawAssets(dirname string, manageCertificates bool, caKeyRequiredOnContr
 
 	type entry struct {
 		name         string
-		data         *RawCredentialOnDisk
+		data         *PlaintextFile
 		defaultValue *string
 		expiryCheck  bool
 	}
@@ -519,12 +522,12 @@ func ReadRawAssets(dirname string, manageCertificates bool, caKeyRequiredOnContr
 
 	for _, file := range files {
 		path := filepath.Join(dirname, file.name)
-		data, err := RawCredentialFileFromPath(path, file.defaultValue)
+		data, err := credential.RawCredentialFileFromPath(path, file.defaultValue)
 		if err != nil {
 			return nil, fmt.Errorf("error reading credential file %s: %v", path, err)
 		}
 		if file.expiryCheck {
-			certs, err := tlscerts.FromBytes(data.content)
+			certs, err := pki.CertificatesFromBytes(data.Bytes())
 			if err != nil {
 				return nil, err
 			}
@@ -541,7 +544,7 @@ func ReadRawAssets(dirname string, manageCertificates bool, caKeyRequiredOnContr
 	return r, nil
 }
 
-func ReadOrEncryptAssets(dirname string, manageCertificates bool, caKeyRequiredOnController bool, kiamEnabled bool, encryptor CachedEncryptor) (*EncryptedAssetsOnDisk, error) {
+func ReadOrEncryptAssets(dirname string, manageCertificates bool, caKeyRequiredOnController bool, kiamEnabled bool, encryptor credential.CachedEncryptor) (*EncryptedAssetsOnDisk, error) {
 	defaultTokensFile := ""
 	defaultServiceAccountKey := "<<<" + filepath.Join(dirname, "apiserver-key.pem")
 	defaultTLSBootstrapToken, err := RandomTokenString()
@@ -557,7 +560,7 @@ func ReadOrEncryptAssets(dirname string, manageCertificates bool, caKeyRequiredO
 
 	type entry struct {
 		name          string
-		data          *EncryptedCredentialOnDisk
+		data          *credential.EncryptedFile
 		defaultValue  *string
 		readEncrypted bool
 		expiryCheck   bool
@@ -619,12 +622,12 @@ func ReadOrEncryptAssets(dirname string, manageCertificates bool, caKeyRequiredO
 				return nil, fmt.Errorf("error persisting %s: %v", path, err)
 			}
 		} else {
-			raw, err := RawCredentialFileFromPath(path, file.defaultValue)
+			raw, err := credential.RawCredentialFileFromPath(path, file.defaultValue)
 			if err != nil {
 				return nil, fmt.Errorf("error reading credential file %s: %v", path, err)
 			}
 			if file.expiryCheck {
-				certs, err := tlscerts.FromBytes(raw.content)
+				certs, err := pki.CertificatesFromBytes(raw.Bytes())
 				if err != nil {
 					return nil, err
 				}
@@ -634,7 +637,7 @@ func ReadOrEncryptAssets(dirname string, manageCertificates bool, caKeyRequiredO
 					}
 				}
 			}
-			(*file.data).content = raw.content
+			(*file.data).SetBytes(raw.Bytes())
 		}
 	}
 
@@ -773,7 +776,7 @@ func (r *RawAssetsOnMemory) WriteToDir(dirname string, includeCAKey bool, kiamEn
 func (r *EncryptedAssetsOnDisk) WriteToDir(dirname string, kiamEnabled bool) error {
 	type asset struct {
 		name string
-		data EncryptedCredentialOnDisk
+		data EncryptedFile
 	}
 	assets := []asset{
 		{"ca.pem", r.CACert},
@@ -825,9 +828,9 @@ func (r *EncryptedAssetsOnDisk) WriteToDir(dirname string, kiamEnabled bool) err
 
 func (r *RawAssetsOnDisk) Compact() (*CompactAssets, error) {
 	var err error
-	compact := func(c RawCredentialOnDisk) string {
+	compact := func(c PlaintextFile) string {
 		// Nothing to compact
-		if len(c.content) == 0 {
+		if len(c.Bytes()) == 0 {
 			return ""
 		}
 
@@ -836,7 +839,7 @@ func (r *RawAssetsOnDisk) Compact() (*CompactAssets, error) {
 		}
 
 		var out string
-		if out, err = gzipcompressor.CompressData(c.content); err != nil {
+		if out, err = gzipcompressor.BytesToGzippedBase64String(c.Bytes()); err != nil {
 			return ""
 		}
 		return out
@@ -881,9 +884,9 @@ func (r *RawAssetsOnDisk) Compact() (*CompactAssets, error) {
 
 func (r *EncryptedAssetsOnDisk) Compact() (*CompactAssets, error) {
 	var err error
-	compact := func(c EncryptedCredentialOnDisk) string {
+	compact := func(c EncryptedFile) string {
 		// Nothing to compact
-		if len(c.content) == 0 {
+		if len(c.Bytes()) == 0 {
 			return ""
 		}
 
@@ -892,7 +895,7 @@ func (r *EncryptedAssetsOnDisk) Compact() (*CompactAssets, error) {
 		}
 
 		var out string
-		if out, err = gzipcompressor.CompressData(c.content); err != nil {
+		if out, err = gzipcompressor.BytesToGzippedBase64String(c.Bytes()); err != nil {
 			return ""
 		}
 		return out
@@ -937,12 +940,12 @@ func (r *EncryptedAssetsOnDisk) Compact() (*CompactAssets, error) {
 }
 
 type KMSConfig struct {
-	EncryptService EncryptService
+	EncryptService credential.EncryptionService
 	KMSKeyARN      string
 }
 
-func NewKMSConfig(kmsKeyARN string, encSvc EncryptService, session *session.Session) KMSConfig {
-	var svc EncryptService
+func NewKMSConfig(kmsKeyARN string, encSvc credential.EncryptionService, session *session.Session) KMSConfig {
+	var svc credential.EncryptionService
 	if encSvc != nil {
 		svc = encSvc
 	} else {
@@ -957,13 +960,13 @@ func NewKMSConfig(kmsKeyARN string, encSvc EncryptService, session *session.Sess
 func ReadOrCreateEncryptedAssets(tlsAssetsDir string, manageCertificates bool, caKeyRequiredOnController bool, kiamEnabled bool, kmsConfig KMSConfig) (*EncryptedAssetsOnDisk, error) {
 	kmsSvc := kmsConfig.EncryptService
 
-	encryptionSvc := bytesEncryptionService{
-		kmsKeyARN: kmsConfig.KMSKeyARN,
-		kmsSvc:    kmsSvc,
+	encryptionSvc := credential.KMSEncryptionService{
+		KmsKeyARN: kmsConfig.KMSKeyARN,
+		KmsSvc:    kmsSvc,
 	}
 
-	encryptor := CachedEncryptor{
-		bytesEncryptionService: encryptionSvc,
+	encryptor := credential.CachedEncryptor{
+		EncryptionService: encryptionSvc,
 	}
 
 	return ReadOrEncryptAssets(tlsAssetsDir, manageCertificates, caKeyRequiredOnController, kiamEnabled, encryptor)

@@ -158,7 +158,7 @@ func NewCluster(cfgRef *controlplaneconfig.Cluster, opts controlplaneconfig.Stac
 	// Notes:
 	// * `c.StackConfig.CustomSystemdUnits` results in an `ambiguous selector ` error
 	// * `c.Etcd.CustomSystemdUnits = controllerUnits` and `c.ClusterRef.Etcd.CustomSystemdUnits = etcdUnits` results in modifying invisible/duplicate CustomSystemdSettings
-	extras := clusterextension.NewExtrasFromPlugins(plugins, c.PluginConfigs)
+	extras := clusterextension.NewExtrasFromPlugins(plugins, c.PluginConfigs, c)
 
 	extraStack, err := extras.EtcdStack()
 	if err != nil {

@@ -49,6 +49,7 @@ func init() {
 	cmdRenderCredentials.Flags().StringVar(&renderCredentialsOpts.CaCertPath, "ca-cert-path", "./credentials/ca.pem", "path to pem-encoded CA x509 certificate")
 	cmdRenderCredentials.Flags().BoolVar(&renderCredentialsOpts.KIAM, "kiam", true, "generate TLS assets for kiam")
 }
+
 func runCmdRender(_ *cobra.Command, args []string) error {
 	logger.Warn("'kube-aws render' is deprecated. See 'kube-aws render --help' for usage")
 	if len(args) != 0 {
@@ -68,6 +69,7 @@ func runCmdRender(_ *cobra.Command, args []string) error {
 
 	return nil
 }
+
 func runCmdRenderStack(_ *cobra.Command, _ []string) error {
 	if err := root.RenderStack(configPath); err != nil {
 		return err

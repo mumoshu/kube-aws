@@ -9,6 +9,7 @@ import (
 	"github.com/kubernetes-incubator/kube-aws/cfnstack"
 	controlplane "github.com/kubernetes-incubator/kube-aws/core/controlplane/config"
 	nodepool "github.com/kubernetes-incubator/kube-aws/core/nodepool/config"
+	"github.com/kubernetes-incubator/kube-aws/credential"
 	"github.com/kubernetes-incubator/kube-aws/model"
 	"github.com/kubernetes-incubator/kube-aws/plugin"
 	"github.com/kubernetes-incubator/kube-aws/plugin/pluginmodel"
@@ -194,7 +195,7 @@ func failFastWhenUnknownKeysFound(vs []unknownKeyValidation) error {
 	return nil
 }
 
-func ConfigFromBytesWithStubs(data []byte, plugins []*pluginmodel.Plugin, encryptService controlplane.EncryptService, cf cfnstack.CFInterrogator, ec cfnstack.EC2Interrogator) (*Config, error) {
+func ConfigFromBytesWithStubs(data []byte, plugins []*pluginmodel.Plugin, encryptService credential.EncryptionService, cf cfnstack.CFInterrogator, ec cfnstack.EC2Interrogator) (*Config, error) {
 	c, err := ConfigFromBytes(data, plugins)
 	if err != nil {
 		return nil, err

@@ -15,17 +15,21 @@ import (
 	"github.com/Masterminds/semver"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/go-yaml/yaml"
+	"github.com/kubernetes-incubator/kube-aws/builtin"
 	"github.com/kubernetes-incubator/kube-aws/cfnresource"
 	"github.com/kubernetes-incubator/kube-aws/cfnstack"
 	"github.com/kubernetes-incubator/kube-aws/coreos/amiregistry"
+	"github.com/kubernetes-incubator/kube-aws/credential"
 	"github.com/kubernetes-incubator/kube-aws/gzipcompressor"
 	"github.com/kubernetes-incubator/kube-aws/logger"
 	"github.com/kubernetes-incubator/kube-aws/model"
 	"github.com/kubernetes-incubator/kube-aws/model/derived"
 	"github.com/kubernetes-incubator/kube-aws/naming"
 	"github.com/kubernetes-incubator/kube-aws/netutil"
-	"github.com/kubernetes-incubator/kube-aws/node"
+	"github.com/kubernetes-incubator/kube-aws/plugin/plugincontents"
 	"github.com/kubernetes-incubator/kube-aws/plugin/pluginmodel"
+	"github.com/kubernetes-incubator/kube-aws/plugin/pluginutil"
+	"github.com/kubernetes-incubator/kube-aws/provisioner"
 )
 
 const (
@@ -214,6 +218,12 @@ func NewDefaultCluster() *Cluster {
 				Enabled:         true,
 			},
 			Kubernetes: Kubernetes{
+				Authentication: KubernetesAuthentication{
+					AWSIAM: AWSIAM{
+						Enabled:           false,
+						BinaryDownloadURL: `https://github.com/kubernetes-sigs/aws-iam-authenticator/releases/download/v0.3.0/heptio-authenticator-aws_0.3.0_linux_amd64`,
+					},
+				},
 				EncryptionAtRest: EncryptionAtRest{
 					Enabled: false,
 				},
@@ -448,7 +458,7 @@ func (c *Cluster) SetDefaults() error {
 	return nil
 }
 
-func ClusterFromBytesWithEncryptService(data []byte, encryptService EncryptService) (*Cluster, error) {
+func ClusterFromBytesWithEncryptService(data []byte, encryptService credential.EncryptionService) (*Cluster, error) {
 	cluster, err := ClusterFromBytes(data)
 	if err != nil {
 		return nil, err
@@ -578,13 +588,14 @@ type Cluster struct {
 	DefaultWorkerSettings   `yaml:",inline"`
 	ControllerSettings      `yaml:",inline"`
 	EtcdSettings            `yaml:",inline"`
-	AdminAPIEndpointName    string              `yaml:"adminAPIEndpointName,omitempty"`
-	RecordSetTTL            int                 `yaml:"recordSetTTL,omitempty"`
-	TLSCADurationDays       int                 `yaml:"tlsCADurationDays,omitempty"`
-	TLSCertDurationDays     int                 `yaml:"tlsCertDurationDays,omitempty"`
-	HostedZoneID            string              `yaml:"hostedZoneId,omitempty"`
+	AdminAPIEndpointName    string `yaml:"adminAPIEndpointName,omitempty"`
+	RecordSetTTL            int    `yaml:"recordSetTTL,omitempty"`
+	TLSCADurationDays       int    `yaml:"tlsCADurationDays,omitempty"`
+	TLSCertDurationDays     int    `yaml:"tlsCertDurationDays,omitempty"`
+	HostedZoneID            string `yaml:"hostedZoneId,omitempty"`
+	Worker                  `yaml:"workerWIP"`
 	PluginConfigs           model.PluginConfigs `yaml:"kubeAwsPlugins,omitempty"`
-	ProvidedEncryptService  EncryptService
+	ProvidedEncryptService  credential.EncryptionService
 	ProvidedCFInterrogator  cfnstack.CFInterrogator
 	ProvidedEC2Interrogator cfnstack.EC2Interrogator
 	// SSHAccessAllowedSourceCIDRs is network ranges of sources you'd like SSH accesses to be allowed from, in CIDR notation
@@ -593,11 +604,21 @@ type Cluster struct {
 	KubeResourcesAutosave       `yaml:"kubeResourcesAutosave,omitempty"`
 }
 
+type Worker struct {
+	NodePools []NodePool `yaml:"nodePools"`
+}
+
+type NodePool struct {
+	NodePoolName string `yaml:"name"`
+}
+
 // Kubelet options
 type Kubelet struct {
-	RotateCerts             RotateCerts `yaml:"rotateCerts"`
-	SystemReservedResources string      `yaml:"systemReserved"`
-	KubeReservedResources   string      `yaml:"kubeReserved"`
+	RotateCerts             RotateCerts               `yaml:"rotateCerts"`
+	SystemReservedResources string                    `yaml:"systemReserved"`
+	KubeReservedResources   string                    `yaml:"kubeReserved"`
+	Kubeconfig              string                    `yaml:"kubeconfig"`
+	Mounts                  []pluginmodel.VolumeMount `yaml:"mounts"`
 }
 
 type Experimental struct {
@@ -769,41 +790,6 @@ type LocalStreaming struct {
 	interval int    `yaml:"interval"`
 }
 
-type Kubernetes struct {
-	EncryptionAtRest  EncryptionAtRest  `yaml:"encryptionAtRest"`
-	Networking        Networking        `yaml:"networking,omitempty"`
-	ControllerManager ControllerManager `yaml:"controllerManager,omitempty"`
-}
-
-type ControllerManager struct {
-	ComputeResources ComputeResources `yaml:"resources,omitempty"`
-}
-
-type ComputeResources struct {
-	Requests ResourceQuota `yaml:"requests,omitempty"`
-	Limits   ResourceQuota `yaml:"limits,omitempty"`
-}
-
-type ResourceQuota struct {
-	Cpu    string `yaml:"cpu"`
-	Memory string `yaml:"memory"`
-}
-
-type Networking struct {
-	AmazonVPC   AmazonVPC   `yaml:"amazonVPC"`
-	SelfHosting SelfHosting `yaml:"selfHosting"`
-}
-
-type SelfHosting struct {
-	Type            string      `yaml:"type"`
-	Typha           bool        `yaml:"typha"`
-	CalicoNodeImage model.Image `yaml:"calicoNodeImage"`
-	CalicoCniImage  model.Image `yaml:"calicoCniImage"`
-	FlannelImage    model.Image `yaml:"flannelImage"`
-	FlannelCniImage model.Image `yaml:"flannelCniImage"`
-	TyphaImage      model.Image `yaml:"typhaImage"`
-}
-
 type HostOS struct {
 	BashPrompt model.BashPrompt `yaml:"bashPrompt,omitempty"`
 	MOTDBanner model.MOTDBanner `yaml:"motdBanner,omitempty"`
@@ -936,6 +922,32 @@ func (c ControllerSettings) ControllerRollingUpdateMinInstancesInService() int {
 // AdminAPIEndpointURL is the url of the API endpoint which is written in kubeconfig and used to by admins
 func (c *Config) AdminAPIEndpointURL() string {
 	return fmt.Sprintf("https://%s", c.AdminAPIEndpoint.DNSName)
+}
+
+func (c *Config) APIEndpointURLPort() string {
+	return fmt.Sprintf("https://%s:443", c.APIEndpoints.GetDefault().DNSName)
+}
+
+func (c *Config) AWSIAMAuthenticatorClusterIDRef() string {
+	var rawClusterId string
+	if c.Kubernetes.Authentication.AWSIAM.ClusterID != "" {
+		rawClusterId = c.Kubernetes.Authentication.AWSIAM.ClusterID
+	} else {
+		rawClusterId = c.ClusterName
+	}
+	return fmt.Sprintf(`"%s"`, rawClusterId)
+}
+
+func (c *Config) IAMRoleARNs() []string {
+	arns := []string{
+		`{"Fn::GetAtt": ["IAMRoleController", "Arn"]}`,
+	}
+
+	for _, np := range c.NodePools {
+		arns = append(arns, fmt.Sprintf(`{"Fn::ImportValue" : {"Fn::Sub" : "${NetworkStackName}-%sIAMRoleWorkerArn"}}`, np.NodePoolName))
+	}
+
+	return arns
 }
 
 // Required by kubelet to use the consistent network plugin with the base cluster
@@ -1200,7 +1212,7 @@ func (c Cluster) NodeLabels() model.NodeLabels {
 
 // Etcdadm returns the content of the etcdadm script to be embedded into cloud-config-etcd
 func (c *Config) Etcdadm() (string, error) {
-	return gzipcompressor.CompressData(Etcdadm)
+	return gzipcompressor.BytesToGzippedBase64String(builtin.Bytes("etcdadm/etcdadm"))
 }
 
 func (c Cluster) validate() error {
@@ -1744,16 +1756,13 @@ type kubernetesManifestPlugin struct {
 	Manifests []pluggedInKubernetesManifest
 }
 
-func (p kubernetesManifestPlugin) ManifestListFile() node.UploadedFile {
+func (p kubernetesManifestPlugin) ManifestListFile() *provisioner.RemoteFile {
 	paths := []string{}
 	for _, m := range p.Manifests {
 		paths = append(paths, m.ManifestFile.Path)
 	}
 	bytes := []byte(strings.Join(paths, "\n"))
-	return node.UploadedFile{
-		Path:    p.listFilePath(),
-		Content: node.NewUploadedFileContent(bytes),
-	}
+	return provisioner.NewRemoteFileAtPath(p.listFilePath(), bytes)
 }
 
 func (p kubernetesManifestPlugin) listFilePath() string {
@@ -1765,23 +1774,20 @@ func (p kubernetesManifestPlugin) Directory() string {
 }
 
 type pluggedInKubernetesManifest struct {
-	ManifestFile node.UploadedFile
+	ManifestFile *provisioner.RemoteFile
 }
 
 type helmReleasePlugin struct {
 	Releases []pluggedInHelmRelease
 }
 
-func (p helmReleasePlugin) ReleaseListFile() node.UploadedFile {
+func (p helmReleasePlugin) ReleaseListFile() *provisioner.RemoteFile {
 	paths := []string{}
 	for _, r := range p.Releases {
 		paths = append(paths, r.ReleaseFile.Path)
 	}
 	bytes := []byte(strings.Join(paths, "\n"))
-	return node.UploadedFile{
-		Path:    p.listFilePath(),
-		Content: node.NewUploadedFileContent(bytes),
-	}
+	return provisioner.NewRemoteFileAtPath(p.listFilePath(), bytes)
 }
 
 func (p helmReleasePlugin) listFilePath() string {
@@ -1793,25 +1799,43 @@ func (p helmReleasePlugin) Directory() string {
 }
 
 type pluggedInHelmRelease struct {
-	ValuesFile  node.UploadedFile
-	ReleaseFile node.UploadedFile
+	ValuesFile  *provisioner.RemoteFile
+	ReleaseFile *provisioner.RemoteFile
 }
 
 func (c *Config) KubernetesManifestPlugin() kubernetesManifestPlugin {
 	manifests := []pluggedInKubernetesManifest{}
-	for pluginName, _ := range c.PluginConfigs {
-		plugin, ok := c.KubeAwsPlugins[pluginName]
+	for pluginName, pc := range c.PluginConfigs {
+		p, ok := c.KubeAwsPlugins[pluginName]
 		if !ok {
 			panic(fmt.Errorf("Plugin %s is requested but not loaded. Probably a typo in the plugin name inside cluster.yaml?", pluginName))
 		}
-		for _, manifestConfig := range plugin.Configuration.Kubernetes.Manifests {
-			bytes := []byte(manifestConfig.Contents.Inline)
-			m := pluggedInKubernetesManifest{
-				ManifestFile: node.UploadedFile{
-					Path:    filepath.Join("/srv/kube-aws/plugins", plugin.Metadata.Name, manifestConfig.Name),
-					Content: node.NewUploadedFileContent(bytes),
-				},
+
+		values := pluginutil.MergeValues(p.Spec.Values, pc.Values)
+		render := plugincontents.NewTemplateRenderer(p, values, c)
+
+		for _, m := range p.Cluster.Kubernetes.Manifests {
+			rendered, err := render.File(m.RemoteFileSpec)
+			if err != nil {
+				panic(err)
 			}
+			var name string
+			if m.Name == "" {
+				if m.RemoteFileSpec.Source.Path == "" {
+					panic(fmt.Errorf("manifest.name is required in %v", m))
+				}
+				name = filepath.Base(m.RemoteFileSpec.Source.Path)
+			} else {
+				name = m.Name
+			}
+			f := provisioner.NewRemoteFileAtPath(
+				filepath.Join("/srv/kube-aws/plugins", p.Metadata.Name, name),
+				[]byte(rendered),
+			)
+			m := pluggedInKubernetesManifest{
+				ManifestFile: f,
+			}
+
 			manifests = append(manifests, m)
 		}
 	}
@@ -1825,7 +1849,7 @@ func (c *Config) HelmReleasePlugin() helmReleasePlugin {
 	releases := []pluggedInHelmRelease{}
 	for pluginName, _ := range c.PluginConfigs {
 		plugin := c.KubeAwsPlugins[pluginName]
-		for _, releaseConfig := range plugin.Configuration.Helm.Releases {
+		for _, releaseConfig := range plugin.Cluster.Helm.Releases {
 			valuesFilePath := filepath.Join("/srv/kube-aws/plugins", plugin.Metadata.Name, "helm", "releases", releaseConfig.Name, "values.yaml")
 			valuesFileContent, err := json.Marshal(releaseConfig.Values)
 			if err != nil {
@@ -1846,14 +1870,14 @@ func (c *Config) HelmReleasePlugin() helmReleasePlugin {
 				panic(fmt.Errorf("Unexpected error in HelmReleasePlugin: %v", err))
 			}
 			r := pluggedInHelmRelease{
-				ValuesFile: node.UploadedFile{
-					Path:    valuesFilePath,
-					Content: node.NewUploadedFileContent(valuesFileContent),
-				},
-				ReleaseFile: node.UploadedFile{
-					Path:    releaseFilePath,
-					Content: node.NewUploadedFileContent(releaseFileContent),
-				},
+				ValuesFile: provisioner.NewRemoteFileAtPath(
+					valuesFilePath,
+					valuesFileContent,
+				),
+				ReleaseFile: provisioner.NewRemoteFileAtPath(
+					releaseFilePath,
+					releaseFileContent,
+				),
 			}
 			releases = append(releases, r)
 		}

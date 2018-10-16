@@ -15,6 +15,7 @@ type CustomFile struct {
 	Permissions uint   `yaml:"permissions"`
 	Content     string `yaml:"content,omitempty"`
 	Template    string `yaml:"template,omitempty"`
+	Encrypted   bool   `yaml:"encrypted,omitempty"`
 	UnknownKeys `yaml:",inline"`
 }
 
@@ -24,7 +25,7 @@ func (c CustomFile) PermissionsString() string {
 }
 
 func (c CustomFile) GzippedBase64Content() string {
-	out, err := gzipcompressor.CompressString(c.Content)
+	out, err := gzipcompressor.StringToGzippedBase64String(c.Content)
 	if err != nil {
 		return ""
 	}
@@ -47,7 +48,7 @@ func (c CustomFile) RenderGzippedBase64Content(ctx interface{}) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	return gzipcompressor.CompressString(content)
+	return gzipcompressor.StringToGzippedBase64String(content)
 }
 
 func (c CustomFile) customFileHasTemplate() bool {

@@ -12,6 +12,7 @@ import (
 	"github.com/kubernetes-incubator/kube-aws/cfnresource"
 	cfg "github.com/kubernetes-incubator/kube-aws/core/controlplane/config"
 	"github.com/kubernetes-incubator/kube-aws/coreos/amiregistry"
+	"github.com/kubernetes-incubator/kube-aws/credential"
 	"github.com/kubernetes-incubator/kube-aws/logger"
 	"github.com/kubernetes-incubator/kube-aws/model"
 	"github.com/kubernetes-incubator/kube-aws/model/derived"
@@ -43,7 +44,7 @@ type ProvidedConfig struct {
 	Plugins                 model.PluginConfigs `yaml:"kubeAwsPlugins,omitempty"`
 	Private                 bool                `yaml:"private,omitempty"`
 	NodePoolName            string              `yaml:"name,omitempty"`
-	ProvidedEncryptService  cfg.EncryptService
+	ProvidedEncryptService  credential.EncryptionService
 	model.UnknownKeys       `yaml:",inline"`
 }
 
@@ -245,7 +246,7 @@ kube-aws can't save users from mistakes like that
 	return nil
 }
 
-func ClusterFromBytesWithEncryptService(data []byte, main *cfg.Config, encryptService cfg.EncryptService) (*ProvidedConfig, error) {
+func ClusterFromBytesWithEncryptService(data []byte, main *cfg.Config, encryptService credential.EncryptionService) (*ProvidedConfig, error) {
 	cluster, err := ClusterFromBytes(data, main)
 	if err != nil {
 		return nil, err
@@ -258,6 +259,20 @@ func ClusterFromBytesWithEncryptService(data []byte, main *cfg.Config, encryptSe
 // to access the apiserver
 func (c ProvidedConfig) APIEndpointURL() string {
 	return fmt.Sprintf("https://%s", c.APIEndpoint.DNSName)
+}
+
+func (c ProvidedConfig) APIEndpointURLPort() string {
+	return c.APIEndpointURL() + ":443"
+}
+
+func (c ProvidedConfig) AWSIAMAuthenticatorClusterIDRef() string {
+	var rawClusterId string
+	if c.Kubernetes.Authentication.AWSIAM.ClusterID != "" {
+		rawClusterId = c.Kubernetes.Authentication.AWSIAM.ClusterID
+	} else {
+		rawClusterId = c.ClusterName
+	}
+	return fmt.Sprintf(`"%s"`, rawClusterId)
 }
 
 func (c ProvidedConfig) Config() (*ComputedConfig, error) {

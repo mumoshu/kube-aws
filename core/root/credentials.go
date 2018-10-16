@@ -5,8 +5,7 @@ import (
 	"github.com/kubernetes-incubator/kube-aws/core/controlplane/config"
 	"github.com/kubernetes-incubator/kube-aws/core/root/defaults"
 	"github.com/kubernetes-incubator/kube-aws/logger"
-	"github.com/kubernetes-incubator/kube-aws/tlscerts"
-	"github.com/kubernetes-incubator/kube-aws/tlsutil"
+	"github.com/kubernetes-incubator/kube-aws/pki"
 	"io/ioutil"
 	"os"
 	"path"
@@ -28,7 +27,7 @@ func RenderCredentials(configPath string, renderCredentialsOpts config.Credentia
 	return err
 }
 
-func LoadCertificates() (map[string]tlscerts.Certificates, error) {
+func LoadCertificates() (map[string]pki.Certificates, error) {
 
 	if _, err := os.Stat(defaults.AssetsDir); os.IsNotExist(err) {
 		return nil, fmt.Errorf("%s does not exist, run 'render credentials' first", defaults.AssetsDir)
@@ -39,7 +38,7 @@ func LoadCertificates() (map[string]tlscerts.Certificates, error) {
 		return nil, fmt.Errorf("cannot read files from %s: %v", defaults.AssetsDir, err)
 	}
 
-	certs := make(map[string]tlscerts.Certificates)
+	certs := make(map[string]pki.Certificates)
 	for _, f := range files {
 		if f.IsDir() || !strings.HasSuffix(f.Name(), ".pem") {
 			continue
@@ -49,10 +48,10 @@ func LoadCertificates() (map[string]tlscerts.Certificates, error) {
 			logger.Warnf("cannot read %q file: %v", f.Name(), err)
 			continue
 		}
-		if !tlsutil.IsCertificatePEM(b) {
+		if !pki.IsCertificatePEM(b) {
 			continue
 		}
-		c, err := tlscerts.FromBytes(b)
+		c, err := pki.CertificatesFromBytes(b)
 		if err != nil {
 			logger.Warnf("cannot parse %q file: %v", f.Name(), err)
 			continue

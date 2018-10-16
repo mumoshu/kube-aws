@@ -85,6 +85,18 @@ func (c Controller) Validate() error {
 	return nil
 }
 
+func (c Controller) InstanceProfileRoles() string {
+	return fmt.Sprintf(`"Roles": ["%s"]`, c.InstanceProfileRole())
+}
+
+func (c Controller) InstanceProfileRole() string {
+	if c.IAMConfig.Role.UseStrict && c.IAMConfig.Role.Name != "" {
+		return c.IAMConfig.Role.Name
+	} else {
+		return `{"Ref":"IAMRoleController"}`
+	}
+}
+
 type ControllerElb struct {
 	Private bool
 	Subnets Subnets

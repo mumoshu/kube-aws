@@ -111,7 +111,7 @@ func (self UserDataPart) Base64(compress bool, extra ...map[string]interface{}) 
 		return "", err
 	}
 	if compress {
-		return gzipcompressor.CompressString(content)
+		return gzipcompressor.StringToGzippedBase64String(content)
 	} else {
 		return base64.StdEncoding.EncodeToString([]byte(content)), nil
 	}

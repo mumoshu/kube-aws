@@ -57,7 +57,7 @@ func (p networkStack) Name() string {
 }
 
 func (p networkStack) Tags() map[string]string {
-	return p.network.StackTags
+	return p.network.StackConfig.StackTags
 }
 
 func (p networkStack) NeedToExportIAMroles() bool {

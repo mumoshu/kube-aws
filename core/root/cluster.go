@@ -161,7 +161,7 @@ func ClusterFromConfig(cfg *config.Config, opts options, awsDebug bool) (*cluste
 
 	netOpts := stackTemplateOpts
 	netOpts.StackTemplateTmplFile = opts.NetworkStackTemplateTmplFile
-	net, err := network.NewCluster(cfg.Cluster, netOpts, plugins, session)
+	net, err := network.NewCluster(cfg, netOpts, plugins, session)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initizlie network stack: %v", err)
 	}
@@ -197,23 +197,26 @@ func ClusterFromConfig(cfg *config.Config, opts options, awsDebug bool) (*cluste
 		nodePools = append(nodePools, np)
 	}
 
-	extras := clusterextension.NewExtrasFromPlugins(plugins, cp.PluginConfigs)
+	base := &clusterImpl{
+		opts:         opts,
+		controlPlane: cp,
+		etcd:         etcd,
+		network:      net,
+		nodePools:    nodePools,
+		session:      session,
+	}
+
+	extras := clusterextension.NewExtrasFromPlugins(plugins, cp.PluginConfigs, base)
 	extra, err := extras.RootStack()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load root stack extras from plugins: %v", err)
 	}
 
-	c := &clusterImpl{
-		opts:              opts,
-		controlPlane:      cp,
-		etcd:              etcd,
-		network:           net,
-		nodePools:         nodePools,
-		session:           session,
-		ExtraCfnResources: extra.Resources,
-	}
+	c := *base
 
-	return c, nil
+	c.ExtraCfnResources = extra.Resources
+
+	return &c, nil
 }
 
 type clusterImpl struct {
@@ -480,7 +483,9 @@ func (c *clusterImpl) generateAssets(targets OperationTargets) (cfnstack.Assets,
 		}
 	}
 
-	nestedStacksAssets := netAssets.Merge(cpAssets).Merge(etcdAssets).Merge(wAssets)
+	nestedStacksAssets := netAssets.Merge(cpAssets).
+		Merge(etcdAssets).
+		Merge(wAssets)
 
 	s3URI := fmt.Sprintf("%s/kube-aws/clusters/%s/exported/stacks",
 		strings.TrimSuffix(c.s3URI(), "/"),
@@ -718,7 +723,7 @@ func (c *clusterImpl) ValidateStack(opts ...OperationTargets) (string, error) {
 		return "", err
 	}
 
-	// Upload all the assets including stack templates and cloud-configs for all the stacks
+	// Send all the assets including stack templates and cloud-configs for all the stacks
 	err = c.uploadAssets(assets)
 	if err != nil {
 		return "", err

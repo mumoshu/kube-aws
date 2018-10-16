@@ -18,6 +18,7 @@ type StackConfig struct {
 	UserDataController    model.UserData
 	UserDataEtcd          model.UserData
 	ControllerSubnetIndex int
+	CfnInitConfigSets     map[string]interface{}
 	ExtraCfnResources     map[string]interface{}
 }
 

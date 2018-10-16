@@ -9,6 +9,7 @@ import (
 
 	"github.com/kubernetes-incubator/kube-aws/cfnstack"
 	"github.com/kubernetes-incubator/kube-aws/core/controlplane/config"
+	rootconfig "github.com/kubernetes-incubator/kube-aws/core/root/config"
 	"github.com/kubernetes-incubator/kube-aws/logger"
 	"github.com/kubernetes-incubator/kube-aws/model"
 	"github.com/kubernetes-incubator/kube-aws/naming"
@@ -20,15 +21,15 @@ var VERSION = "UNKNOWN"
 
 const STACK_TEMPLATE_FILENAME = "stack.json"
 
-func newClusterRef(cfg *config.Cluster, session *session.Session) *ClusterRef {
+func newClusterRef(cfg *rootconfig.Config, session *session.Session) *ClusterRef {
 	return &ClusterRef{
-		Cluster: cfg,
+		Config:  cfg,
 		session: session,
 	}
 }
 
 type ClusterRef struct {
-	*config.Cluster
+	*rootconfig.Config
 	session *session.Session
 }
 
@@ -111,8 +112,8 @@ func (c *ClusterRef) validateExistingVPCState(ec2Svc ec2Service) error {
 	return nil
 }
 
-func NewCluster(cfgRef *config.Cluster, opts config.StackTemplateOptions, plugins []*pluginmodel.Plugin, session *session.Session) (*Cluster, error) {
-	cfg := &config.Cluster{}
+func NewCluster(cfgRef *rootconfig.Config, opts config.StackTemplateOptions, plugins []*pluginmodel.Plugin, session *session.Session) (*Cluster, error) {
+	cfg := &rootconfig.Config{}
 	*cfg = *cfgRef
 
 	clusterRef := newClusterRef(cfg, session)
@@ -191,22 +192,16 @@ func (c *Cluster) stackProvisioner() *cfnstack.Provisioner {
 `
 	return cfnstack.NewProvisioner(
 		c.StackName,
-		c.StackTags,
+		c.StackConfig.StackTags,
 		c.ClusterExportedStacksS3URI(),
-		c.Region,
+		c.StackConfig.Region,
 		stackPolicyBody,
 		c.session,
-		c.CloudFormation.RoleARN,
+		c.StackConfig.CloudFormation.RoleARN,
 	)
 }
 
 func (c *Cluster) Validate() error {
-	ec2Svc := ec2.New(c.session)
-
-	if err := c.validateExistingVPCState(ec2Svc); err != nil {
-		return err
-	}
-
 	return nil
 }
 

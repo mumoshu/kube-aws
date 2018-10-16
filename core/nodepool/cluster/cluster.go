@@ -9,12 +9,15 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/kubernetes-incubator/kube-aws/cfnstack"
 	controlplanecluster "github.com/kubernetes-incubator/kube-aws/core/controlplane/cluster"
 	"github.com/kubernetes-incubator/kube-aws/core/nodepool/config"
 	"github.com/kubernetes-incubator/kube-aws/model"
 	"github.com/kubernetes-incubator/kube-aws/plugin/clusterextension"
 	"github.com/kubernetes-incubator/kube-aws/plugin/pluginmodel"
+	"github.com/kubernetes-incubator/kube-aws/provisioner"
+	"time"
 )
 
 const STACK_TEMPLATE_FILENAME = "stack.json"
@@ -27,7 +30,9 @@ type ClusterRef struct {
 type Cluster struct {
 	*ClusterRef
 	*config.StackConfig
-	assets cfnstack.Assets
+	assets          cfnstack.Assets
+	archivedFiles   []provisioner.RemoteFileSpec
+	NodeProvisioner *provisioner.Provisioner
 }
 
 type Info struct {
@@ -73,7 +78,7 @@ func NewCluster(provided *config.ProvidedConfig, opts config.StackTemplateOption
 		ClusterRef:  clusterRef,
 	}
 
-	extras := clusterextension.NewExtrasFromPlugins(plugins, c.Plugins)
+	extras := clusterextension.NewExtrasFromPlugins(plugins, c.Plugins, c)
 
 	extraStack, err := extras.NodePoolStack()
 	if err != nil {
@@ -81,10 +86,16 @@ func NewCluster(provided *config.ProvidedConfig, opts config.StackTemplateOption
 	}
 	c.StackConfig.ExtraCfnResources = extraStack.Resources
 
-	extraWorker, err := extras.Worker()
+	extraWorker, err := extras.Worker(c)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load controller node extras from plugins: %v", err)
 	}
+	if len(c.Kubelet.Kubeconfig) == 0 {
+		c.Kubelet.Kubeconfig = extraWorker.Kubeconfig
+	}
+	c.Kubelet.Mounts = append(c.Kubelet.Mounts, extraWorker.KubeletVolumeMounts...)
+	c.archivedFiles = extraWorker.ArchivedFiles
+	c.StackConfig.CfnInitConfigSets = extraWorker.CfnInitConfigSets
 	c.StackConfig.CustomSystemdUnits = append(c.StackConfig.CustomSystemdUnits, extraWorker.SystemdUnits...)
 	c.StackConfig.CustomFiles = append(c.StackConfig.CustomFiles, extraWorker.Files...)
 	c.StackConfig.IAMConfig.Policy.Statements = append(c.StackConfig.IAMConfig.Policy.Statements, extraWorker.IAMPolicyStatements...)
@@ -102,6 +113,9 @@ func NewCluster(provided *config.ProvidedConfig, opts config.StackTemplateOption
 	}
 
 	c.assets, err = c.buildAssets()
+	if err != nil {
+		return nil, fmt.Errorf("failed initializign node pool: %v", err)
+	}
 
 	return c, err
 }
@@ -112,8 +126,14 @@ func (c *Cluster) Assets() cfnstack.Assets {
 
 func (c *Cluster) buildAssets() (cfnstack.Assets, error) {
 	var err error
+
+	c.NodeProvisioner, err = c.PrepareNodeProvisioner()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create node provisioner: %v", err)
+	}
+
 	assets := cfnstack.NewAssetsBuilder(c.StackName(), c.StackConfig.S3URI, c.StackConfig.Region)
-	if c.UserDataWorker, err = model.NewUserData(c.StackTemplateOptions.WorkerTmplFile, c.ComputedConfig); err != nil {
+	if c.UserDataWorker, err = model.NewUserData(c.StackTemplateOptions.WorkerTmplFile, c); err != nil {
 		return nil, fmt.Errorf("failed to render worker cloud config: %v", err)
 	}
 
@@ -175,6 +195,42 @@ func (c *Cluster) ValidateStack() (string, error) {
 		return "", fmt.Errorf("failed to get template url : %v", err)
 	}
 	return c.stackProvisioner().ValidateStackAtURL(stackTemplateURL)
+}
+
+func (cluster *Cluster) PrepareNodeProvisioner() (*provisioner.Provisioner, error) {
+	t := time.Now()
+	prov := cluster.CreateNodeProvisioner(t)
+	if err := prov.Send(); err != nil {
+		return nil, err
+	}
+	return prov, nil
+}
+
+func (cluster *Cluster) CreateNodeProvisioner(t time.Time) *provisioner.Provisioner {
+	role := "worker"
+
+	s3Client := s3.New(cluster.session())
+
+	entry := "/opt/bin/entrypoint"
+	files := []provisioner.RemoteFileSpec{
+		{
+			Path: entry,
+			Source: provisioner.Source{
+				Path: fmt.Sprintf("files/%s/opt/bin/entrypoint", role),
+			},
+			Content: provisioner.NewStringContent(`/usr/bin/env bash -e
+echo running the kube-aws entrypoint script
+`),
+			Permissions: 0755,
+		},
+	}
+
+	files = append(files, cluster.archivedFiles...)
+
+	ts := t.Format("20060102150405")
+	cacheDir := fmt.Sprintf("cache/%s/%s", ts, role)
+	prov := provisioner.NewProvisioner(files, entry, s3Client, fmt.Sprintf("%s/%s/%s", cluster.S3URI, "nodeprovisioner", role), cacheDir)
+	return prov
 }
 
 func (c *ClusterRef) validateKeyPair(ec2Svc ec2DescribeKeyPairsService) error {

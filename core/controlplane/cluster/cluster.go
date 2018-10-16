@@ -13,6 +13,7 @@ import (
 
 	"errors"
 
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/kubernetes-incubator/kube-aws/cfnstack"
 	"github.com/kubernetes-incubator/kube-aws/core/controlplane/config"
 	"github.com/kubernetes-incubator/kube-aws/gzipcompressor"
@@ -20,9 +21,11 @@ import (
 	"github.com/kubernetes-incubator/kube-aws/model"
 	"github.com/kubernetes-incubator/kube-aws/naming"
 	"github.com/kubernetes-incubator/kube-aws/netutil"
+	"github.com/kubernetes-incubator/kube-aws/pki"
 	"github.com/kubernetes-incubator/kube-aws/plugin/clusterextension"
 	"github.com/kubernetes-incubator/kube-aws/plugin/pluginmodel"
-	"github.com/kubernetes-incubator/kube-aws/tlscerts"
+	"github.com/kubernetes-incubator/kube-aws/provisioner"
+	"time"
 )
 
 // VERSION set by build script
@@ -45,7 +48,9 @@ type ClusterRef struct {
 type Cluster struct {
 	*ClusterRef
 	*config.StackConfig
-	assets cfnstack.Assets
+	assets          cfnstack.Assets
+	archivedFiles   []provisioner.RemoteFileSpec
+	NodeProvisioner *provisioner.Provisioner
 }
 
 type ec2Service interface {
@@ -150,7 +155,7 @@ func NewCluster(cfgRef *config.Cluster, opts config.StackTemplateOptions, plugin
 	// Notes:
 	// * `c.StackConfig.CustomSystemdUnits` results in an `ambiguous selector ` error
 	// * `c.Controller.CustomSystemdUnits = controllerUnits` and `c.ClusterRef.Controller.CustomSystemdUnits = controllerUnits` results in modifying invisible/duplicate CustomSystemdSettings
-	extras := clusterextension.NewExtrasFromPlugins(plugins, c.PluginConfigs)
+	extras := clusterextension.NewExtrasFromPlugins(plugins, c.PluginConfigs, c)
 
 	extraStack, err := extras.ControlPlaneStack()
 	if err != nil {
@@ -158,10 +163,16 @@ func NewCluster(cfgRef *config.Cluster, opts config.StackTemplateOptions, plugin
 	}
 	c.StackConfig.ExtraCfnResources = extraStack.Resources
 
-	extraController, err := extras.Controller()
+	extraController, err := extras.Controller(c)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load controller node extras from plugins: %v", err)
 	}
+	if len(c.Kubelet.Kubeconfig) == 0 {
+		c.Kubelet.Kubeconfig = extraController.Kubeconfig
+	}
+	c.Kubelet.Mounts = append(c.Kubelet.Mounts, extraController.KubeletVolumeMounts...)
+	c.archivedFiles = extraController.ArchivedFiles
+	c.StackConfig.CfnInitConfigSets = extraController.CfnInitConfigSets
 	c.StackConfig.Config.APIServerFlags = append(c.StackConfig.Config.APIServerFlags, extraController.APIServerFlags...)
 	c.StackConfig.Config.APIServerVolumes = append(c.StackConfig.Config.APIServerVolumes, extraController.APIServerVolumes...)
 	c.StackConfig.Controller.CustomSystemdUnits = append(c.StackConfig.Controller.CustomSystemdUnits, extraController.SystemdUnits...)
@@ -188,9 +199,15 @@ func (c *Cluster) Assets() cfnstack.Assets {
 
 func (c *Cluster) buildAssets() (cfnstack.Assets, error) {
 	var err error
+
+	c.NodeProvisioner, err = c.PrepareNodeProvisioner()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create node provisioner: %v", err)
+	}
+
 	assets := cfnstack.NewAssetsBuilder(c.StackName, c.StackConfig.ClusterExportedStacksS3URI(), c.StackConfig.Region)
 
-	if c.StackConfig.UserDataController, err = model.NewUserData(c.StackTemplateOptions.ControllerTmplFile, c.StackConfig.Config); err != nil {
+	if c.StackConfig.UserDataController, err = model.NewUserData(c.StackTemplateOptions.ControllerTmplFile, c); err != nil {
 		return nil, fmt.Errorf("failed to render controller cloud config: %v", err)
 	}
 
@@ -395,12 +412,12 @@ func (c *ClusterRef) validateControllerRootVolume(ec2Svc ec2Service) error {
 // - It must include the externalDNS name for the api servers.
 // - It must include the IPAddress of the first IP in the chosen ServiceCIDR.
 func (c Cluster) validateCertsAgainstSettings() error {
-	apiServerPEM, err := gzipcompressor.DecompressString(c.AssetsConfig.APIServerCert)
+	apiServerPEM, err := gzipcompressor.GzippedBase64StringToString(c.AssetsConfig.APIServerCert)
 	if err != nil {
 		return fmt.Errorf("could not decompress the apiserver pem: %v", err)
 	}
 
-	apiServerCerts, err := tlscerts.FromBytes([]byte(apiServerPEM))
+	apiServerCerts, err := pki.CertificatesFromBytes([]byte(apiServerPEM))
 	if err != nil {
 		return fmt.Errorf("error parsing api server cert: %v", err)
 	}
@@ -427,4 +444,40 @@ func (c Cluster) validateCertsAgainstSettings() error {
 		return fmt.Errorf("the api server cert does not contain the kubernetes service ip address %v, please regenerate or resolve", kubernetesServiceIPAddr)
 	}
 	return nil
+}
+
+func (cluster *Cluster) PrepareNodeProvisioner() (*provisioner.Provisioner, error) {
+	t := time.Now()
+	prov := cluster.CreateNodeProvisioner(t)
+	if err := prov.Send(); err != nil {
+		return nil, err
+	}
+	return prov, nil
+}
+
+func (plane *Cluster) CreateNodeProvisioner(t time.Time) *provisioner.Provisioner {
+	role := "controller"
+
+	s3Client := s3.New(plane.session)
+
+	entry := "/opt/bin/entrypoint"
+	files := []provisioner.RemoteFileSpec{
+		{
+			Path: entry,
+			Source: provisioner.Source{
+				Path: fmt.Sprintf("files/%s/opt/bin/entrypoint", role),
+			},
+			Content: provisioner.NewStringContent(`/usr/bin/env bash -e
+echo running the kube-aws entrypoint script
+`),
+			Permissions: 755,
+		},
+	}
+
+	files = append(files, plane.archivedFiles...)
+
+	ts := t.Format("20060102150405")
+	cacheDir := fmt.Sprintf("cache/%s/%s", ts, role)
+	prov := provisioner.NewProvisioner(files, entry, s3Client, fmt.Sprintf("%s/%s/%s", plane.S3URI, "nodeprovisioner", role), cacheDir)
+	return prov
 }

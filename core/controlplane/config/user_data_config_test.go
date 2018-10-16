@@ -9,6 +9,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/coreos/coreos-cloudinit/config/validate"
+	"github.com/kubernetes-incubator/kube-aws/fsembed"
 	"github.com/kubernetes-incubator/kube-aws/model"
 	"github.com/kubernetes-incubator/kube-aws/test/helper"
 	"github.com/stretchr/testify/assert"
@@ -70,7 +71,7 @@ func TestCloudConfigTemplating(t *testing.T) {
 	var compactAssets *CompactAssets
 
 	cachedEncryptor := CachedEncryptor{
-		bytesEncryptionService: bytesEncryptionService{kmsKeyARN: cfg.KMSKeyARN, kmsSvc: &dummyEncryptService{}},
+		KMSEncryptionService: KMSEncryptionService{kmsKeyARN: cfg.KMSKeyARN, kmsSvc: &dummyEncryptService{}},
 	}
 
 	helper.WithTempDir(func(dir string) {
@@ -103,7 +104,7 @@ func TestCloudConfigTemplating(t *testing.T) {
 	}{
 		{
 			Name:     "CloudConfigController",
-			Template: CloudConfigController,
+			Template: builtin.Bytes("userdata/cloud-config-controller"),
 		},
 	} {
 		tmpfile, _ := ioutil.TempFile("", "ud")
