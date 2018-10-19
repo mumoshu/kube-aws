@@ -7,7 +7,6 @@ import (
 	"errors"
 
 	"github.com/kubernetes-incubator/kube-aws/cfnresource"
-	"github.com/kubernetes-incubator/kube-aws/coreos/amiregistry"
 	"github.com/kubernetes-incubator/kube-aws/credential"
 	"github.com/kubernetes-incubator/kube-aws/logger"
 	"github.com/kubernetes-incubator/kube-aws/naming"
@@ -17,15 +16,6 @@ import (
 
 type Ref struct {
 	PoolName string
-}
-
-type NodePoolTemplateContext struct {
-	NodePoolConfig
-
-	// Fields computed from Cluster
-	AMI string
-
-	AssetsConfig *credential.CompactAssets
 }
 
 type NodePoolConfig struct {
@@ -73,21 +63,6 @@ func (c NodePoolConfig) AWSIAMAuthenticatorClusterIDRef() string {
 		rawClusterId = c.ClusterName
 	}
 	return fmt.Sprintf(`"%s"`, rawClusterId)
-}
-
-func (c NodePoolConfig) Config() (*NodePoolTemplateContext, error) {
-	config := NodePoolTemplateContext{NodePoolConfig: c}
-
-	if c.AmiId == "" {
-		var err error
-		if config.AMI, err = amiregistry.GetAMI(config.Region.String(), config.ReleaseChannel); err != nil {
-			return nil, fmt.Errorf("failed getting AMI for config: %v", err)
-		}
-	} else {
-		config.AMI = c.AmiId
-	}
-
-	return &config, nil
 }
 
 func (c NodePoolConfig) NodeLabels() clusterapi.NodeLabels {

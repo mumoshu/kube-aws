@@ -3,6 +3,7 @@ package cluster
 import (
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/kubernetes-incubator/kube-aws/coreos/amiregistry"
 	"github.com/kubernetes-incubator/kube-aws/credential"
 	"github.com/kubernetes-incubator/kube-aws/logger"
 	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
@@ -146,9 +147,20 @@ func NewWorkerStack(conf *Config, npconf *NodePoolConfig, opts clusterapi.StackT
 		opts,
 		assetsConfig,
 		func(stack *Stack) (interface{}, error) {
+			var ami string
+			if npconf.AmiId == "" {
+				var err error
+				if ami, err = amiregistry.GetAMI(conf.Region.String(), npconf.ReleaseChannel); err != nil {
+					return nil, fmt.Errorf("failed getting AMI for config: %v", err)
+				}
+			} else {
+				ami = npconf.AmiId
+			}
+
 			return WorkerTmplCtx{
 				Stack:          stack,
 				NodePoolConfig: npconf,
+				AMI:            ami,
 			}, nil
 		},
 		func(stack *Stack) error {

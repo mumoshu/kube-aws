@@ -78,6 +78,8 @@ func (c ControllerTmplCtx) UserDataController() *clusterapi.UserData {
 type WorkerTmplCtx struct {
 	*Stack
 	*NodePoolConfig
+
+	AMI string
 }
 
 // UserDataWorker is here for backward-compatibility.
