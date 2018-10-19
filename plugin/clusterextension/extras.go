@@ -9,7 +9,7 @@ import (
 	"github.com/kubernetes-incubator/kube-aws/plugin/pluginutil"
 	"github.com/kubernetes-incubator/kube-aws/provisioner"
 	"github.com/kubernetes-incubator/kube-aws/tmpl"
-	"os"
+	//"os"
 	"path/filepath"
 )
 
@@ -307,24 +307,24 @@ func (e ClusterExtension) Controller(clusterConfig interface{}) (*controller, er
 					continue
 				}
 
-				dump, err := json.Marshal(d)
-				if err != nil {
-					panic(err)
-				}
-				fmt.Fprintf(os.Stderr, "controller file: %s", string(dump))
+				//dump, err := json.Marshal(d)
+				//if err != nil {
+				//	panic(err)
+				//}
+				//fmt.Fprintf(os.Stderr, "controller file: %s", string(dump))
 
 				s, cfg, err := regularOrConfigSetFile(d, render)
 				if err != nil {
 					return nil, fmt.Errorf("failed to load plugin controller file contents: %v", err)
 				}
 
-				if s != nil {
-					fmt.Fprintf(os.Stderr, "controller file rendering result str: %s", *s)
-				}
-
-				if cfg != nil {
-					fmt.Fprintf(os.Stderr, "controller file rendering result map: cfg=%+v", cfg)
-				}
+				//if s != nil {
+				//	fmt.Fprintf(os.Stderr, "controller file rendering result str: %s", *s)
+				//}
+				//
+				//if cfg != nil {
+				//	fmt.Fprintf(os.Stderr, "controller file rendering result map: cfg=%+v", cfg)
+				//}
 
 				perm := d.Permissions
 

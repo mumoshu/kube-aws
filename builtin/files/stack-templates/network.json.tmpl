@@ -844,7 +844,7 @@
     {{quote $n}}: {{toJSON $r}}
     {{end}}
 
-    {{ range $i, $nodepool := .Worker.NodePools }}
+    {{ range $i, $nodepool := .WorkerNodePools }}
     {{ with $nodepool }}
     ,"{{.NodePoolName}}IAMManagedPolicyWorker" : {
       "Type" : "AWS::IAM::ManagedPolicy",
@@ -876,13 +876,13 @@
                   "Effect": "Allow",
                   "Resource": "*"
                 },
-                {{- if $.UserDataWorker.Parts.s3 }}
+                {{- if $nodepool.UserDataWorker.Parts.s3 }}
                 {
                   "Effect": "Allow",
                   "Action": [
                     "s3:GetObject"
                   ],
-                  "Resource": "arn:{{.Region.Partition}}:s3:::{{ $.UserDataWorker.Parts.s3.Asset.S3Prefix }}*"
+                  "Resource": "arn:{{.Region.Partition}}:s3:::{{ $nodepool.UserDataWorker.Parts.s3.Asset.S3Prefix }}*"
                 },
                 {{- end }}
                 {{if .CloudWatchLogging.Enabled}}
@@ -1067,14 +1067,13 @@
           {{range $policyIndex, $policyArn := .IAMConfig.Role.ManagedPolicies }}
             "{{$policyArn.Arn}}",
           {{end}}
-          {"Ref": "IAMManagedPolicyWorker"}
+          {"Ref": "{{.NodePoolName}}IAMManagedPolicyWorker"}
         ]
       },
       "Type": "AWS::IAM::Role"
     }
-  }
-  {{end}}
-  {{end}}
+    {{end}}
+    {{end}}
   },
 
   "Outputs": {
@@ -1130,7 +1129,7 @@
     },
     "{{.NodePoolName}}IAMRoleWorkerArn": {
       "Description": "The IAM role for {{.NodePoolName}}",
-      "Value": { "Fn::GetAtt": ["{{.NodePoolName}}IAMRoleWorker", "Arn"] },,
+      "Value": { "Fn::GetAtt": ["{{.NodePoolName}}IAMRoleWorker", "Arn"] },
       "Export": { "Name" : {"Fn::Sub": "${AWS::StackName}-{{.NodePoolName}}IAMRoleWorkerArn" }}
     },
     {{end}}

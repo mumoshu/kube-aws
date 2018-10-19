@@ -3,6 +3,7 @@ package cfnstack
 import (
 	"fmt"
 	"github.com/kubernetes-incubator/kube-aws/fingerprint"
+	"github.com/kubernetes-incubator/kube-aws/logger"
 	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 	"path/filepath"
 	"strings"
@@ -46,6 +47,12 @@ func (a assetsImpl) AsMap() map[clusterapi.AssetID]clusterapi.Asset {
 func (a assetsImpl) findAssetByID(id clusterapi.AssetID) (clusterapi.Asset, error) {
 	asset, ok := a.underlying[id]
 	if !ok {
+		ks := []string{}
+		for id, _ := range a.underlying {
+			k := fmt.Sprintf("%s/%s", id.StackName, id.Filename)
+			ks = append(ks, k)
+		}
+		logger.Debugf("dumping stored asset keys: %s", strings.Join(ks, ", "))
 		return asset, fmt.Errorf("[bug] failed to get the asset for the id \"%s\"", id)
 	}
 	return asset, nil

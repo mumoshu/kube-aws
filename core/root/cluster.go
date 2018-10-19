@@ -196,21 +196,16 @@ func (cl *aggregatedCluster) ensureNestedStacksLoaded() error {
 	netOpts := stackTemplateOpts
 	netOpts.StackTemplateTmplFile = opts.NetworkStackTemplateTmplFile
 
-	net, err := cluster.NewNetworkStack(cfg, netOpts, extras, assetsConfig)
-	if err != nil {
-		return fmt.Errorf("failed to initizlie network stack: %v", err)
-	}
-
 	cpOpts := stackTemplateOpts
 	cpOpts.StackTemplateTmplFile = opts.ControlPlaneStackTemplateTmplFile
-	cp, err := cluster.NewControlPlaneStack(cfg, netOpts, extras, assetsConfig)
+	cp, err := cluster.NewControlPlaneStack(cfg, cpOpts, extras, assetsConfig)
 	if err != nil {
 		return fmt.Errorf("failed to initialize control-plane stack: %v", err)
 	}
 
 	etcdOpts := stackTemplateOpts
 	etcdOpts.StackTemplateTmplFile = opts.EtcdStackTemplateTmplFile
-	etcd, err := cluster.NewEtcdStack(cfg, netOpts, extras, assetsConfig, cl.session)
+	etcd, err := cluster.NewEtcdStack(cfg, etcdOpts, extras, assetsConfig, cl.session)
 	if err != nil {
 		return fmt.Errorf("failed to initialize etcd stack: %v", err)
 	}
@@ -234,6 +229,11 @@ func (cl *aggregatedCluster) ensureNestedStacksLoaded() error {
 			return fmt.Errorf("failed to load node pool #%d: %v", i, err)
 		}
 		nodePools = append(nodePools, np)
+	}
+
+	net, err := cluster.NewNetworkStack(cfg, nodePools, netOpts, extras, assetsConfig)
+	if err != nil {
+		return fmt.Errorf("failed to initizlie network stack: %v", err)
 	}
 
 	cl.etcd = etcd

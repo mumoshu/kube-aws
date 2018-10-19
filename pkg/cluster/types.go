@@ -56,14 +56,38 @@ type EtcdTmplCtx struct {
 	clusterapi.EtcdExistingState
 }
 
-// DefaultTmplCtx is used for rendering controller and network stacks and userdata
-type DefaultTmplCtx struct {
+// UserDataEtcd is here for backward-compatibility.
+// You should use `Userdata.Etcd` instead in your templates.
+func (c EtcdTmplCtx) UserDataEtcd() *clusterapi.UserData {
+	return c.GetUserData("Etcd")
+}
+
+// ControllerTmplCtx is used for rendering controller stack and userdata
+type ControllerTmplCtx struct {
 	*Stack
 	*Config
+}
+
+// UserDataController is here for backward-compatibility.
+// You should use `Userdata.Controller` instead in your templates.
+func (c ControllerTmplCtx) UserDataController() *clusterapi.UserData {
+	return c.GetUserData("Controller")
 }
 
 // WorkerTmplCtx is used for rendering worker stacks and userdata
 type WorkerTmplCtx struct {
 	*Stack
 	*NodePoolConfig
+}
+
+// UserDataWorker is here for backward-compatibility.
+// You should use `Userdata.Worker` instead in your templates.
+func (c WorkerTmplCtx) UserDataWorker() *clusterapi.UserData {
+	return c.GetUserData("Worker")
+}
+
+type NetworkTmplCtx struct {
+	*Stack
+	*Config
+	WorkerNodePools []WorkerTmplCtx
 }

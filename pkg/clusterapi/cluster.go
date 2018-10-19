@@ -526,7 +526,7 @@ type Cluster struct {
 	TLSCADurationDays     int    `yaml:"tlsCADurationDays,omitempty"`
 	TLSCertDurationDays   int    `yaml:"tlsCertDurationDays,omitempty"`
 	HostedZoneID          string `yaml:"hostedZoneId,omitempty"`
-	Worker                `yaml:"workerWIP"`
+	Worker                `yaml:"worker"`
 	PluginConfigs         PluginConfigs `yaml:"kubeAwsPlugins,omitempty"`
 	// SSHAccessAllowedSourceCIDRs is network ranges of sources you'd like SSH accesses to be allowed from, in CIDR notation
 	SSHAccessAllowedSourceCIDRs CIDRRanges             `yaml:"sshAccessAllowedSourceCIDRs,omitempty"`

@@ -93,7 +93,7 @@ func (c *Stack) buildAssets() (cfnstack.Assets, error) {
 
 	stackTemplate, err := c.RenderStackTemplateAsString()
 	if err != nil {
-		return nil, fmt.Errorf("failed to render control-plane template: %v", err)
+		return nil, fmt.Errorf("failed to render %s template: %v", c.StackName, err)
 	}
 
 	logger.Debugf("Calling assets.Add on %s", STACK_TEMPLATE_FILENAME)
@@ -168,7 +168,7 @@ func (c Stack) NestedStackName() string {
 }
 
 func (c *Stack) String() string {
-	return fmt.Sprintf("{Config:%+v}", c.tmplCtx)
+	return fmt.Sprintf("{Config:%+v}", c.Config)
 }
 
 // validateCertsAgainstSettings cross checks that our api server cert is compatible with our cluster settings: -

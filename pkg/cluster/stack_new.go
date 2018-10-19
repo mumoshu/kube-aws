@@ -48,7 +48,7 @@ func NewControlPlaneStack(conf *Config, opts clusterapi.StackTemplateOptions, ex
 		opts,
 		assetsConfig,
 		func(stack *Stack) (interface{}, error) {
-			return DefaultTmplCtx{
+			return ControllerTmplCtx{
 				Stack:  stack,
 				Config: conf,
 			}, nil
@@ -73,16 +73,22 @@ func NewControlPlaneStack(conf *Config, opts clusterapi.StackTemplateOptions, ex
 	)
 }
 
-func NewNetworkStack(conf *Config, opts clusterapi.StackTemplateOptions, extras clusterextension.ClusterExtension, assetsConfig *credential.CompactAssets) (*Stack, error) {
+func NewNetworkStack(conf *Config, nodePools []*Stack, opts clusterapi.StackTemplateOptions, extras clusterextension.ClusterExtension, assetsConfig *credential.CompactAssets) (*Stack, error) {
 	return newStack(
 		"network",
 		conf,
 		opts,
 		assetsConfig,
 		func(stack *Stack) (interface{}, error) {
-			return DefaultTmplCtx{
-				Stack:  stack,
-				Config: conf,
+			nps := []WorkerTmplCtx{}
+			for _, s := range nodePools {
+				nps = append(nps, s.tmplCtx.(WorkerTmplCtx))
+			}
+
+			return NetworkTmplCtx{
+				Stack:           stack,
+				Config:          conf,
+				WorkerNodePools: nps,
 			}, nil
 		},
 		func(stack *Stack) error {
@@ -181,7 +187,7 @@ func NewWorkerStack(conf *Config, npconf *NodePoolConfig, opts clusterapi.StackT
 			stack.archivedFiles = extraWorker.ArchivedFiles
 			stack.CfnInitConfigSets = extraWorker.CfnInitConfigSets
 
-			return nil
+			return stack.RenderAddWorkerUserdata(opts)
 		},
 	)
 }

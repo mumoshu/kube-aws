@@ -3,7 +3,10 @@ package clusterapi
 import "fmt"
 
 type Worker struct {
-	NodePools []WorkerNodePool `yaml:"nodePools"`
+	APIEndpointName         string           `yaml:"apiEndpointName,omitempty"`
+	NodePools               []WorkerNodePool `yaml:"nodePools,omitempty"`
+	NodePoolRollingStrategy string           `yaml:"nodePoolRollingStrategy,omitempty"`
+	UnknownKeys             `yaml:",inline"`
 }
 
 // Kubelet options

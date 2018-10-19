@@ -27,15 +27,7 @@ type InitialConfig struct {
 
 type UnmarshalledConfig struct {
 	clusterapi.Cluster     `yaml:",inline"`
-	Worker                 `yaml:"worker,omitempty"`
 	clusterapi.UnknownKeys `yaml:",inline"`
-}
-
-type Worker struct {
-	APIEndpointName         string                       `yaml:"apiEndpointName,omitempty"`
-	NodePools               []*clusterapi.WorkerNodePool `yaml:"nodePools,omitempty"`
-	NodePoolRollingStrategy string                       `yaml:"nodePoolRollingStrategy,omitempty"`
-	clusterapi.UnknownKeys  `yaml:",inline"`
 }
 
 type Config struct {
@@ -57,9 +49,6 @@ type unknownKeyValidation struct {
 func newDefaultUnmarshalledConfig() *UnmarshalledConfig {
 	return &UnmarshalledConfig{
 		Cluster: *clusterapi.NewDefaultCluster(),
-		Worker: Worker{
-			NodePools: []*clusterapi.WorkerNodePool{},
-		},
 	}
 }
 
@@ -110,9 +99,6 @@ func ConfigFromBytes(data []byte, plugins []*clusterapi.Plugin) (*Config, error)
 
 	nps := []*cluster.NodePoolConfig{}
 	for i, np := range nodePools {
-		if np == nil {
-			return nil, fmt.Errorf("Empty nodepool definition found at index %d", i)
-		}
 		if err := np.Taints.Validate(); err != nil {
 			return nil, fmt.Errorf("invalid taints for node pool at index %d: %v", i, err)
 		}
@@ -135,7 +121,7 @@ func ConfigFromBytes(data []byte, plugins []*clusterapi.Plugin) (*Config, error)
 			}
 		}
 
-		npConf, err := cluster.NodePoolCompile(*np, cpConfig)
+		npConf, err := cluster.NodePoolCompile(np, cpConfig)
 		if err != nil {
 			return nil, fmt.Errorf("invalid node pool at index %d: %v", i, err)
 		}
