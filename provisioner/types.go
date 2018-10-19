@@ -73,18 +73,18 @@ type Content struct {
 	str   string
 }
 
-// Package is a archived bundle.
-// Package is created, transferred, and then extracted to the etcd, controller and worker nodes to provide
+// TarGzArchiver is a archived bundle.
+// TarGzArchiver is created, transferred, and then extracted to the etcd, controller and worker nodes to provide
 // necessary files for node provisioning.
-type Package struct {
+type TarGzArchiver struct {
 	File RemoteFileSpec `yaml:",inline"`
 	// Bundle is a set of files necessary for node provisioning, that is composed of multiple source files
 	Bundle []RemoteFileSpec `yaml:"files"`
 }
 
-type Transfer struct {
-	PackageFile RemoteFileSpec
-	S3URI       string
+type TransferredFile struct {
+	RemoteFileSpec
+	s3DirURI string
 }
 
 type Provisioner struct {
@@ -98,8 +98,6 @@ type Provisioner struct {
 	// Bundle is the bundle the provisioner uses to provision nodes
 	Bundle []RemoteFileSpec `yaml:"bundle,inline"`
 
-	S3URI    string
-	CacheDir string
-	S3       S3ObjectPutter
-	Loader   *RemoteFileLoader
+	S3DirURI      string
+	LocalCacheDir string
 }

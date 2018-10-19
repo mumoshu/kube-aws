@@ -27,7 +27,7 @@ func (l Loader) Load() ([]*clusterapi.Plugin, error) {
 				return []*clusterapi.Plugin{}, fmt.Errorf("Failed to load plugin from the directory %s: %v", f.Name(), err)
 			}
 			plugins = append(plugins, p)
-			fmt.Fprintf(os.Stderr, "loaded plugin %v\n", p)
+			//fmt.Fprintf(os.Stderr, "loaded plugin %v\n", p)
 		}
 	}
 	return plugins, nil

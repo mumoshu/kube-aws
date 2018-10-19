@@ -12,21 +12,21 @@ import (
 	"time"
 )
 
-func (p Package) Name() string {
+func (p TarGzArchiver) Name() string {
 	return filepath.Base(p.File.Path)
 }
 
-func (p Package) Create(loader *RemoteFileLoader) error {
+func CreateTarGzArchive(archive RemoteFileSpec, bundle []RemoteFileSpec, loader *RemoteFileLoader) error {
 	files := []*RemoteFile{}
-	for _, s := range p.Bundle {
-		f, err := s.Load(loader)
+	for _, s := range bundle {
+		f, err := loader.Load(s)
 		if err != nil {
 			return fmt.Errorf("failed materializing %s: %v", s.Path, err)
 		}
 		files = append(files, f)
 	}
 
-	localpath := p.File.Source.Path
+	localpath := archive.Source.Path
 	dir := filepath.Dir(localpath)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("failed creating dir %s: %v", dir, err)
@@ -45,8 +45,8 @@ func (p Package) Create(loader *RemoteFileLoader) error {
 	tarWriter := tar.NewWriter(gzipWriter)
 	defer tarWriter.Close()
 
-	for i := range p.Bundle {
-		if err := tarWriteFile(tarWriter, p.Bundle[i]); err != nil {
+	for i := range bundle {
+		if err := tarWriteFile(tarWriter, bundle[i]); err != nil {
 			return fmt.Errorf("failed writing tar: %v", err)
 		}
 	}

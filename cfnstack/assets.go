@@ -61,13 +61,13 @@ type AssetsBuilder interface {
 	Build() Assets
 }
 
-type assetsBuilderImpl struct {
-	locProvider AssetLocationProvider
-	assets      map[clusterapi.AssetID]clusterapi.Asset
+type AssetsBuilderImpl struct {
+	AssetLocationProvider
+	assets map[clusterapi.AssetID]clusterapi.Asset
 }
 
-func (b *assetsBuilderImpl) Add(filename string, content string) (clusterapi.Asset, error) {
-	loc, err := b.locProvider.locationFor(filename)
+func (b *AssetsBuilderImpl) Add(filename string, content string) (clusterapi.Asset, error) {
+	loc, err := b.Locate(filename)
 	if err != nil {
 		return clusterapi.Asset{}, err
 	}
@@ -81,7 +81,7 @@ func (b *assetsBuilderImpl) Add(filename string, content string) (clusterapi.Ass
 	return asset, nil
 }
 
-func (b *assetsBuilderImpl) AddUserDataPart(userdata clusterapi.UserData, part string, assetName string) error {
+func (b *AssetsBuilderImpl) AddUserDataPart(userdata clusterapi.UserData, part string, assetName string) error {
 	if p, ok := userdata.Parts[part]; ok {
 		content, err := p.Template()
 		if err != nil {
@@ -98,15 +98,15 @@ func (b *assetsBuilderImpl) AddUserDataPart(userdata clusterapi.UserData, part s
 	return nil // it is not an error if part is not found
 }
 
-func (b *assetsBuilderImpl) Build() Assets {
+func (b *AssetsBuilderImpl) Build() Assets {
 	return assetsImpl{
 		underlying: b.assets,
 	}
 }
 
-func NewAssetsBuilder(stackName string, s3URI string, region clusterapi.Region) AssetsBuilder {
-	return &assetsBuilderImpl{
-		locProvider: AssetLocationProvider{
+func NewAssetsBuilder(stackName string, s3URI string, region clusterapi.Region) *AssetsBuilderImpl {
+	return &AssetsBuilderImpl{
+		AssetLocationProvider: AssetLocationProvider{
 			s3URI:     s3URI,
 			region:    region,
 			stackName: stackName,
@@ -121,7 +121,11 @@ type AssetLocationProvider struct {
 	stackName string
 }
 
-func (p AssetLocationProvider) locationFor(filename string) (*clusterapi.AssetLocation, error) {
+func (p AssetLocationProvider) S3DirURI() string {
+	return fmt.Sprintf("%s/%s", p.s3URI, p.stackName)
+}
+
+func (p AssetLocationProvider) Locate(filename string) (*clusterapi.AssetLocation, error) {
 	if filename == "" {
 		return nil, fmt.Errorf("Can't produce S3 location for empty filename")
 	}
@@ -138,6 +142,7 @@ func (p AssetLocationProvider) locationFor(filename string) (*clusterapi.AssetLo
 		filename,
 	}
 
+	// key = s3uri's path component + stack name + filename
 	key := strings.Join(
 		append(uri.PathComponents(), relativePathComponents...),
 		"/",

@@ -269,7 +269,7 @@ func (e ClusterExtension) Controller(clusterConfig interface{}) (*controller, er
 	releaseFilesets := []clusterapi.HelmReleaseFileset{}
 
 	for _, p := range e.plugins {
-		fmt.Fprintf(os.Stderr, "plugin=%+v configs=%+v", p, e.configs)
+		//fmt.Fprintf(os.Stderr, "plugin=%+v configs=%+v", p, e.configs)
 		if enabled, pc := p.EnabledIn(e.configs); enabled {
 			values := pluginutil.MergeValues(p.Spec.Cluster.Values, pc.Values)
 			render := plugincontents.NewTemplateRenderer(p, values, clusterConfig)

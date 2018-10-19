@@ -77,17 +77,16 @@ func (c *Stack) buildAssets() (cfnstack.Assets, error) {
 
 	var err error
 
-	c.NodeProvisioner, err = c.PrepareNodeProvisioner()
-	if err != nil {
+	assetsBuilder := cfnstack.NewAssetsBuilder(c.StackName, c.ClusterExportedStacksS3URI(), c.Region)
+
+	if err := c.addTarballedAssets(assetsBuilder); err != nil {
 		return nil, fmt.Errorf("failed to create node provisioner: %v", err)
 	}
-
-	assets := cfnstack.NewAssetsBuilder(c.StackName, c.ClusterExportedStacksS3URI(), c.Region)
 
 	for id, _ := range c.UserData {
 		userdataS3PartAssetName := "userdata-" + strings.ToLower(id)
 
-		if err = assets.AddUserDataPart(c.UserData[id], clusterapi.USERDATA_S3, userdataS3PartAssetName); err != nil {
+		if err = assetsBuilder.AddUserDataPart(c.UserData[id], clusterapi.USERDATA_S3, userdataS3PartAssetName); err != nil {
 			return nil, fmt.Errorf("failed to addd %s: %v", userdataS3PartAssetName, err)
 		}
 	}
@@ -98,23 +97,19 @@ func (c *Stack) buildAssets() (cfnstack.Assets, error) {
 	}
 
 	logger.Debugf("Calling assets.Add on %s", STACK_TEMPLATE_FILENAME)
-	assets.Add(STACK_TEMPLATE_FILENAME, stackTemplate)
+	assetsBuilder.Add(STACK_TEMPLATE_FILENAME, stackTemplate)
 
 	// TODO
 	// logger.Debugf("Calling assets.Add on %s", prov.File)
 	// assets.Add(prov.File, prov.Content)
 
 	logger.Debugf("Calling assets.Build for %s...", c.StackName)
-	return assets.Build(), nil
+	return assetsBuilder.Build(), nil
 }
 
-func (s *Stack) PrepareNodeProvisioner() (*provisioner.Provisioner, error) {
+func (s *Stack) addTarballedAssets(assetsBuilder *cfnstack.AssetsBuilderImpl) error {
 	t := time.Now()
-	prov := s.CreateNodeProvisioner(t)
-	return prov, nil
-}
 
-func (s *Stack) CreateNodeProvisioner(t time.Time) *provisioner.Provisioner {
 	role := "controller"
 
 	//s3Client := s3.New(s.Session)
@@ -138,16 +133,29 @@ echo running the kube-aws entrypoint script
 	ts := t.Format("20060102150405")
 	cacheDir := fmt.Sprintf("cache/%s/%s", ts, role)
 	fmt.Fprintf(os.Stderr, "cacheDir= %v", cacheDir)
-	//prov := provisioner.NewProvisioner(files, entry, s3Client, fmt.Sprintf("%s/%s/%s", s.S3URI, "nodeprovisioner", role), cacheDir)
+
+	loader := &provisioner.RemoteFileLoader{}
+
+	prov := provisioner.NewTarballingProvisioner(files, entry, assetsBuilder.S3DirURI(), cacheDir)
+
+	trans, err := prov.CreateTransferredFile(loader)
+	if err != nil {
+		return err
+	}
+	loaded, err := loader.Load(trans.RemoteFileSpec)
+	if err != nil {
+		return err
+	}
+
+	assetsBuilder.Add(prov.Name, loaded.Content.String())
+
+	s.NodeProvisioner = prov
+
 	return nil
 }
 
 func (c *Stack) TemplateURL() (string, error) {
-	assets, err := c.buildAssets()
-	if err != nil {
-		return "", err
-	}
-	asset, err := assets.FindAssetByStackAndFileName(c.StackName, STACK_TEMPLATE_FILENAME)
+	asset, err := c.assets.FindAssetByStackAndFileName(c.StackName, STACK_TEMPLATE_FILENAME)
 	if err != nil {
 		return "", fmt.Errorf("failed to get template URL: %v", err)
 	}
@@ -156,7 +164,7 @@ func (c *Stack) TemplateURL() (string, error) {
 
 // NestedStackName returns a sanitized name of this control-plane which is usable as a valid cloudformation nested stack name
 func (c Stack) NestedStackName() string {
-	return naming.FromStackToCfnResource(ControlPlaneStackName)
+	return naming.FromStackToCfnResource(c.StackName)
 }
 
 func (c *Stack) String() string {

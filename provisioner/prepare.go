@@ -2,66 +2,59 @@ package provisioner
 
 import (
 	"fmt"
-	"path/filepath"
 )
 
-func NewProvisioner(bundle []RemoteFileSpec, entrypoint string, s3Client S3ObjectPutter, s3URI string, pkgCacheDir string) *Provisioner {
-	name := "default"
+func NewTarballingProvisioner(bundle []RemoteFileSpec, entrypoint string, s3DirURI string, pkgCacheDir string) *Provisioner {
+	name := "bundle.tgz"
 
 	prov := &Provisioner{
-		Name:       name,
-		Entrypoint: entrypoint,
-		Bundle:     bundle,
-		S3URI:      s3URI,
-		CacheDir:   pkgCacheDir,
-		S3:         s3Client,
-		Loader:     &RemoteFileLoader{},
+		Name:          name,
+		Entrypoint:    entrypoint,
+		Bundle:        bundle,
+		S3DirURI:      s3DirURI,
+		LocalCacheDir: pkgCacheDir,
 	}
 
 	return prov
 }
 
-func (p *Provisioner) PrepareTransfer() (*Transfer, error) {
-	name := p.Name
+func (p *Provisioner) GetTransferredFile() TransferredFile {
+	pkgFileName := p.Name
 
-	pkgLocalPath := fmt.Sprintf("%s/%s.tgz", p.CacheDir, name)
+	pkgLocalPath := fmt.Sprintf("%s/%s", p.LocalCacheDir, pkgFileName)
 
-	pkg := Package{
-		RemoteFileSpec{
-			Source: Source{Path: pkgLocalPath},
-		},
-		p.Bundle,
+	archive := RemoteFileSpec{
+		Path:   fmt.Sprintf("/var/run/coreos/%s", pkgFileName),
+		Source: Source{Path: pkgLocalPath},
 	}
 
-	err := pkg.Create(p.Loader)
+	return TransferredFile{
+		archive,
+		p.S3DirURI,
+	}
+}
+
+func (p *Provisioner) CreateTransferredFile(loader *RemoteFileLoader) (*TransferredFile, error) {
+	transferredFile := p.GetTransferredFile()
+
+	err := CreateTarGzArchive(transferredFile.RemoteFileSpec, p.Bundle, loader)
 	if err != nil {
 		return nil, fmt.Errorf("failed creating package: %v", err)
 	}
 
-	trans := Transfer{
-		PackageFile: pkg.File,
-		S3URI:       p.S3URI,
-	}
-
-	return &trans, nil
+	return &transferredFile, nil
 }
 
-func (p *Provisioner) Send() error {
-	trans, err := p.PrepareTransfer()
-	if err != nil {
-		return err
-	}
-	if err := trans.Send(p.S3); err != nil {
+func (p *Provisioner) Send(s3Client S3ObjectPutter) error {
+	trans := p.GetTransferredFile()
+	if err := trans.Send(s3Client); err != nil {
 		return fmt.Errorf("failed sending package: %v", err)
 	}
 	return nil
 }
 
 func (p *Provisioner) RemoteCommand() (string, error) {
-	trans, err := p.PrepareTransfer()
-	if err != nil {
-		return "", err
-	}
-	dstdir := "/var/run/coreos"
-	return fmt.Sprintf(`run bash -c "%s" && tar zxvf %s -C / && %s`, trans.ReceiveCommand(dstdir), filepath.Join(dstdir, trans.PackageFile.Name()), p.Entrypoint), nil
+	trans := p.GetTransferredFile()
+
+	return fmt.Sprintf(`run bash -c "%s" && tar zxvf %s -C / && %s`, trans.ReceiveCommand(), trans.Path, p.Entrypoint), nil
 }
