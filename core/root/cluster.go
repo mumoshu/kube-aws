@@ -530,7 +530,7 @@ func (cl *aggregatedCluster) generateAssets(targets OperationTargets) (cfnstack.
 	var wAssets cfnstack.Assets
 	wAssets = cfnstack.EmptyAssets()
 	for _, np := range cl.nodePools {
-		if targets.IncludeWorker(np.NestedStackName()) {
+		if targets.IncludeWorker(np.StackName) {
 			wAssets = wAssets.Merge(np.Assets())
 		}
 	}
@@ -549,7 +549,7 @@ func (cl *aggregatedCluster) generateAssets(targets OperationTargets) (cfnstack.
 	// Do not update the root stack but update either controlplane or worker stack(s) only when specified so
 	includeAll := targets.IncludeNetwork() && targets.IncludeEtcd() && targets.IncludeControlPlane()
 	for _, np := range cl.nodePools {
-		includeAll = includeAll && targets.IncludeWorker(np.NestedStackName())
+		includeAll = includeAll && targets.IncludeWorker(np.StackName)
 	}
 	if includeAll {
 		renderedTemplate, err := cl.renderTemplateAsString()
