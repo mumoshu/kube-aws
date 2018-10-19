@@ -46,7 +46,7 @@ keyName: "%s"
 	}
 }
 
-type NodePoolConfigTester func(c *config.ProvidedConfig, t *testing.T)
+type NodePoolConfigTester func(c *config.NodePoolConfig, t *testing.T)
 
 func TestNodePoolConfig(t *testing.T) {
 	settings := newNodePoolSettingsFromEnv(t)

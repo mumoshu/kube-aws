@@ -625,17 +625,10 @@ write_files:
 
   {{ if .CustomFiles -}}
   {{ range $i, $w := .CustomFiles -}}
-  {{ if $w.Encrypted -}}
-  - path: {{ $w.Path }}.enc
-    permissions: {{$w.PermissionsString}}
-    encoding: gzip+base64
-    content: {{$w.Content}}
-  {{ else -}}
   - path: {{$w.Path}}
     permissions: {{$w.PermissionsString}}
     encoding: gzip+base64
     content: {{$w.RenderGzippedBase64Content $}}
-  {{ end -}}
   {{ end -}}
   {{ end -}}
 

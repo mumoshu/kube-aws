@@ -5,7 +5,7 @@ spec:
   cluster:
     pki:
       keypairs:
-      - name: aws-iam-authenticator
+      - name: aws-iam-authenticator-server
         dnsNames:
         - localhost
         ipAddresses:
@@ -47,13 +47,15 @@ spec:
             permissions: 0644
             source:
               path: files/authentication-token-webhook-config.yaml
-          - path: /srv/kubernetes/aws-iam-authenticator-key.pem
+          - path: /srv/kubernetes/aws-iam-authenticator/key.pem
+            permissions: 0644
             source:
-              path: credentials/aws-iam-authenticator-key.pem
-            encrypted: true
+              path: ../../credentials/aws-iam-authenticator-server-key.pem
+            type: credential
           - path: /srv/kubernetes/aws-iam-authenticator/cert.pem
+            permissions: 0644
             source:
-              path: credentials/aws-iam-authenticator.pem
+              path: ../../credentials/aws-iam-authenticator-server.pem
         worker:
           kubelet:
             kubeconfig: /etc/kubernetes/kubeconfig/aws-iam-auth.yaml

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/kubernetes-incubator/kube-aws/core/controlplane/config"
-	"github.com/kubernetes-incubator/kube-aws/model"
+	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 	"github.com/kubernetes-incubator/kube-aws/test/helper"
 )
 
@@ -65,7 +65,7 @@ func newKubeAwsSettingsFromEnv(t *testing.T) kubeAwsSettings {
 		return kubeAwsSettings{
 			clusterName:                   clusterName,
 			s3URI:                         s3URI,
-			etcdNodeDefaultInternalDomain: model.RegionForName(region).PrivateDomainName(),
+			etcdNodeDefaultInternalDomain: clusterapi.RegionForName(region).PrivateDomainName(),
 			externalDNSName:               externalDnsName,
 			keyName:                       keyName,
 			kmsKeyArn:                     kmsKeyArn,
@@ -75,7 +75,7 @@ func newKubeAwsSettingsFromEnv(t *testing.T) kubeAwsSettings {
 		return kubeAwsSettings{
 			clusterName:                   clusterName,
 			s3URI:                         s3URI,
-			etcdNodeDefaultInternalDomain: model.RegionForName("us-west-1").PrivateDomainName(),
+			etcdNodeDefaultInternalDomain: clusterapi.RegionForName("us-west-1").PrivateDomainName(),
 			externalDNSName:               "test.staging.core-os.net",
 			keyName:                       "test-key-name",
 			kmsKeyArn:                     "arn:aws:kms:us-west-1:xxxxxxxxx:key/xxxxxxxxxxxxxxxxxxx",

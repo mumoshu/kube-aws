@@ -6,7 +6,7 @@ import (
 
 	"bytes"
 	"github.com/kubernetes-incubator/kube-aws/filereader/texttemplate"
-	"github.com/kubernetes-incubator/kube-aws/plugin/pluginmodel"
+	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 	"github.com/kubernetes-incubator/kube-aws/provisioner"
 	"text/template"
 )
@@ -34,13 +34,13 @@ func RenderStringFromTemplateWithValues(expr string, values interface{}, config 
 }
 
 type TemplateRenderer struct {
-	p      *pluginmodel.Plugin
+	p      *clusterapi.Plugin
 	l      *PluginFileLoader
 	values interface{}
 	config interface{}
 }
 
-func NewTemplateRenderer(p *pluginmodel.Plugin, values interface{}, config interface{}) *TemplateRenderer {
+func NewTemplateRenderer(p *clusterapi.Plugin, values interface{}, config interface{}) *TemplateRenderer {
 	return &TemplateRenderer{
 		p:      p,
 		l:      NewPluginFileLoader(p),
@@ -49,10 +49,13 @@ func NewTemplateRenderer(p *pluginmodel.Plugin, values interface{}, config inter
 	}
 }
 
-func (r *TemplateRenderer) File(contents provisioner.RemoteFileSpec) (string, error) {
-	str, err := r.l.String(contents)
+func (r *TemplateRenderer) File(f provisioner.RemoteFileSpec) (string, error) {
+	str, err := r.l.String(f)
 	if err != nil {
 		return "", fmt.Errorf("failed to render template: %v", err)
+	}
+	if f.Type == "credential" {
+		return str, nil
 	}
 	return RenderStringFromTemplateWithValues(str, r.values, r.config)
 }

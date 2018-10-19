@@ -3,16 +3,13 @@ package root
 import (
 	"fmt"
 
-	controlplane "github.com/kubernetes-incubator/kube-aws/core/controlplane/cluster"
-	config "github.com/kubernetes-incubator/kube-aws/core/controlplane/config"
-	etcd "github.com/kubernetes-incubator/kube-aws/core/etcd/cluster"
-	network "github.com/kubernetes-incubator/kube-aws/core/network/cluster"
-	nodepool "github.com/kubernetes-incubator/kube-aws/core/nodepool/cluster"
+	"github.com/kubernetes-incubator/kube-aws/pkg/cluster"
+	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 )
 
 // TemplateParams is the set of parameters exposed for templating cfn stack template for the root stack
 type TemplateParams struct {
-	cluster clusterImpl
+	cluster aggregatedCluster
 }
 
 func (p TemplateParams) ExtraCfnResources() map[string]interface{} {
@@ -24,18 +21,18 @@ func (p TemplateParams) ClusterName() string {
 }
 
 func (p TemplateParams) KubeAwsVersion() string {
-	return controlplane.VERSION
+	return cluster.VERSION
 }
 
-func (p TemplateParams) CloudWatchLogging() config.CloudWatchLogging {
-	return p.cluster.controlPlane.CloudWatchLogging
+func (p TemplateParams) CloudWatchLogging() clusterapi.CloudWatchLogging {
+	return p.cluster.controlPlane.Config.CloudWatchLogging
 }
 
-func (p TemplateParams) KubeDnsMasq() config.KubeDns {
-	return p.cluster.controlPlane.KubeDns
+func (p TemplateParams) KubeDnsMasq() clusterapi.KubeDns {
+	return p.cluster.controlPlane.Config.KubeDns
 }
 
-func newTemplateParams(c *clusterImpl) TemplateParams {
+func newTemplateParams(c *aggregatedCluster) TemplateParams {
 	return TemplateParams{
 		cluster: *c,
 	}
@@ -49,7 +46,7 @@ type NestedStack interface {
 }
 
 type networkStack struct {
-	network *network.Cluster
+	network *cluster.Stack
 }
 
 func (p networkStack) Name() string {
@@ -57,7 +54,7 @@ func (p networkStack) Name() string {
 }
 
 func (p networkStack) Tags() map[string]string {
-	return p.network.StackConfig.StackTags
+	return p.network.Config.StackTags
 }
 
 func (p networkStack) NeedToExportIAMroles() bool {
@@ -75,7 +72,7 @@ func (p networkStack) TemplateURL() (string, error) {
 }
 
 type etcdStack struct {
-	etcd *etcd.Cluster
+	etcd *cluster.Stack
 }
 
 func (p etcdStack) Name() string {
@@ -83,7 +80,7 @@ func (p etcdStack) Name() string {
 }
 
 func (p etcdStack) Tags() map[string]string {
-	return p.etcd.StackTags
+	return p.etcd.Config.StackTags
 }
 
 func (p etcdStack) NeedToExportIAMroles() bool {
@@ -101,7 +98,7 @@ func (p etcdStack) TemplateURL() (string, error) {
 }
 
 type controlPlane struct {
-	controlPlane *controlplane.Cluster
+	controlPlane *cluster.Stack
 }
 
 func (p controlPlane) Name() string {
@@ -109,11 +106,11 @@ func (p controlPlane) Name() string {
 }
 
 func (p controlPlane) Tags() map[string]string {
-	return p.controlPlane.StackTags
+	return p.controlPlane.Config.StackTags
 }
 
 func (p controlPlane) NeedToExportIAMroles() bool {
-	return p.controlPlane.Controller.IAMConfig.InstanceProfile.Arn == ""
+	return p.controlPlane.Config.Controller.IAMConfig.InstanceProfile.Arn == ""
 }
 
 func (p controlPlane) TemplateURL() (string, error) {
@@ -126,16 +123,16 @@ func (p controlPlane) TemplateURL() (string, error) {
 	return u, nil
 }
 
-func (p controlPlane) CloudWatchLogging() config.CloudWatchLogging {
-	return p.controlPlane.CloudWatchLogging
+func (p controlPlane) CloudWatchLogging() clusterapi.CloudWatchLogging {
+	return p.controlPlane.Config.CloudWatchLogging
 }
 
-func (p controlPlane) KubeDns() config.KubeDns {
-	return p.controlPlane.KubeDns
+func (p controlPlane) KubeDns() clusterapi.KubeDns {
+	return p.controlPlane.Config.KubeDns
 }
 
 type nodePool struct {
-	nodePool *nodepool.Cluster
+	nodePool *cluster.Stack
 }
 
 func (p nodePool) Name() string {
@@ -143,7 +140,7 @@ func (p nodePool) Name() string {
 }
 
 func (p nodePool) Tags() map[string]string {
-	return p.nodePool.StackTags
+	return p.nodePool.NodePoolConfig.StackTags
 }
 
 func (p nodePool) TemplateURL() (string, error) {
@@ -156,21 +153,21 @@ func (p nodePool) TemplateURL() (string, error) {
 	return u, nil
 }
 
-func (p nodePool) CloudWatchLogging() config.CloudWatchLogging {
-	return p.nodePool.CloudWatchLogging
+func (p nodePool) CloudWatchLogging() clusterapi.CloudWatchLogging {
+	return p.nodePool.NodePoolConfig.CloudWatchLogging
 }
 
-func (p nodePool) KubeDns() config.KubeDns {
-	return p.nodePool.KubeDns
+func (p nodePool) KubeDns() clusterapi.KubeDns {
+	return p.nodePool.NodePoolConfig.KubeDns
 }
 
 func (p nodePool) NeedToExportIAMroles() bool {
-	return p.nodePool.IAMConfig.InstanceProfile.Arn == ""
+	return p.nodePool.NodePoolConfig.IAMConfig.InstanceProfile.Arn == ""
 }
 
 // returns NodePoolRolling strategy string to be used in stack-template
 func (p nodePool) NodePoolRollingStrategy() string {
-	return p.nodePool.NodePoolConfig.NodePoolRollingStrategy
+	return p.nodePool.NodePoolConfig.WorkerNodePool.NodePoolRollingStrategy
 }
 
 func (c TemplateParams) ControlPlane() controlPlane {

@@ -13,8 +13,7 @@ import (
 	controlplane_config "github.com/kubernetes-incubator/kube-aws/core/controlplane/config"
 	"github.com/kubernetes-incubator/kube-aws/core/root"
 	"github.com/kubernetes-incubator/kube-aws/core/root/config"
-	"github.com/kubernetes-incubator/kube-aws/model"
-	"github.com/kubernetes-incubator/kube-aws/plugin/pluginmodel"
+	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 	"github.com/kubernetes-incubator/kube-aws/test/helper"
 )
 
@@ -45,31 +44,31 @@ func TestMainClusterConfig(t *testing.T) {
 	firstAz := kubeAwsSettings.region + "c"
 
 	hasDefaultEtcdSettings := func(c *config.Config, t *testing.T) {
-		subnet1 := model.NewPublicSubnet(firstAz, "10.0.0.0/24")
+		subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
 		subnet1.Name = "Subnet0"
 		expected := controlplane_config.EtcdSettings{
-			Etcd: model.Etcd{
-				EC2Instance: model.EC2Instance{
+			Etcd: clusterapi.Etcd{
+				EC2Instance: clusterapi.EC2Instance{
 					Count:        1,
 					InstanceType: "t2.medium",
 					Tenancy:      "default",
-					RootVolume: model.RootVolume{
+					RootVolume: clusterapi.RootVolume{
 						Size: 30,
 						Type: "gp2",
 						IOPS: 0,
 					},
 				},
-				DataVolume: model.DataVolume{
+				DataVolume: clusterapi.DataVolume{
 					Size:      30,
 					Type:      "gp2",
 					IOPS:      0,
 					Ephemeral: false,
 				},
-				Subnets: model.Subnets{
+				Subnets: clusterapi.Subnets{
 					subnet1,
 				},
-				UserSuppliedArgs: model.UserSuppliedArgs{
-					QuotaBackendBytes: model.DefaultQuotaBackendBytes,
+				UserSuppliedArgs: clusterapi.UserSuppliedArgs{
+					QuotaBackendBytes: clusterapi.DefaultQuotaBackendBytes,
 				},
 			},
 		}
@@ -128,7 +127,7 @@ func TestMainClusterConfig(t *testing.T) {
 			AwsNodeLabels: controlplane_config.AwsNodeLabels{
 				Enabled: false,
 			},
-			ClusterAutoscalerSupport: model.ClusterAutoscalerSupport{
+			ClusterAutoscalerSupport: clusterapi.ClusterAutoscalerSupport{
 				Enabled: true,
 				Options: map[string]string{},
 			},
@@ -142,7 +141,7 @@ func TestMainClusterConfig(t *testing.T) {
 			},
 			KIAMSupport: controlplane_config.KIAMSupport{
 				Enabled:         false,
-				Image:           model.Image{Repo: "quay.io/uswitch/kiam", Tag: "v2.8", RktPullDocker: false},
+				Image:           clusterapi.Image{Repo: "quay.io/uswitch/kiam", Tag: "v2.8", RktPullDocker: false},
 				SessionDuration: "15m",
 				ServerAddresses: controlplane_config.KIAMServerAddresses{ServerAddress: "localhost:443", AgentAddress: "kiam-server:443"},
 			},
@@ -157,14 +156,14 @@ func TestMainClusterConfig(t *testing.T) {
 			LoadBalancer: controlplane_config.LoadBalancer{
 				Enabled: false,
 			},
-			Oidc: model.Oidc{
+			Oidc: clusterapi.Oidc{
 				Enabled:       false,
 				IssuerUrl:     "https://accounts.google.com",
 				ClientId:      "kubernetes",
 				UsernameClaim: "email",
 				GroupsClaim:   "groups",
 			},
-			NodeDrainer: model.NodeDrainer{
+			NodeDrainer: clusterapi.NodeDrainer{
 				Enabled:      false,
 				DrainTimeout: 5,
 			},
@@ -198,22 +197,22 @@ func TestMainClusterConfig(t *testing.T) {
 	}
 
 	hasDefaultLaunchSpecifications := func(c *config.Config, t *testing.T) {
-		expected := []model.LaunchSpecification{
+		expected := []clusterapi.LaunchSpecification{
 			{
 				WeightedCapacity: 1,
 				InstanceType:     "c4.large",
 				SpotPrice:        "",
-				RootVolume:       model.NewGp2RootVolume(30),
+				RootVolume:       clusterapi.NewGp2RootVolume(30),
 			},
 			{
 				WeightedCapacity: 2,
 				InstanceType:     "c4.xlarge",
 				SpotPrice:        "",
-				RootVolume:       model.NewGp2RootVolume(60),
+				RootVolume:       clusterapi.NewGp2RootVolume(60),
 			},
 		}
 		p := c.NodePools[0]
-		actual := p.NodePoolConfig.SpotFleet.LaunchSpecifications
+		actual := p.WorkerNodePool.SpotFleet.LaunchSpecifications
 		if !reflect.DeepEqual(expected, actual) {
 			t.Errorf(
 				"LaunchSpecifications didn't match: expected=%v actual=%v",
@@ -222,7 +221,7 @@ func TestMainClusterConfig(t *testing.T) {
 			)
 		}
 
-		globalSpotPrice := p.NodePoolConfig.SpotFleet.SpotPrice
+		globalSpotPrice := p.WorkerNodePool.SpotFleet.SpotPrice
 		if globalSpotPrice != "0.06" {
 			t.Errorf("Default spot price is expected to be 0.06 but was: %s", globalSpotPrice)
 		}
@@ -383,10 +382,10 @@ func TestMainClusterConfig(t *testing.T) {
 			cluster := kubeAwsSettings.clusterName
 			stack := kubeAwsSettings.clusterName
 			file := "stack.json"
-			expected := model.Asset{
+			expected := clusterapi.Asset{
 				Content: "",
-				AssetLocation: model.AssetLocation{
-					ID:     model.NewAssetID(stack, file),
+				AssetLocation: clusterapi.AssetLocation{
+					ID:     clusterapi.NewAssetID(stack, file),
 					Bucket: s3Bucket,
 					Key:    s3Dir + "/kube-aws/clusters/" + cluster + "/exported/stacks/" + stack + "/" + file,
 					Path:   stack + "/stack.json",
@@ -416,10 +415,10 @@ func TestMainClusterConfig(t *testing.T) {
 			cluster := kubeAwsSettings.clusterName
 			stack := "control-plane"
 			file := "stack.json"
-			expected := model.Asset{
+			expected := clusterapi.Asset{
 				Content: string(controlplane_config.StackTemplateTemplate),
-				AssetLocation: model.AssetLocation{
-					ID:     model.NewAssetID(stack, file),
+				AssetLocation: clusterapi.AssetLocation{
+					ID:     clusterapi.NewAssetID(stack, file),
 					Bucket: s3Bucket,
 					Key:    s3Dir + "/kube-aws/clusters/" + cluster + "/exported/stacks/" + stack + "/" + file,
 					Path:   stack + "/stack.json",
@@ -479,18 +478,18 @@ worker:
 				hasDefaultEtcdSettings,
 				asgBasedNodePoolHasWaitSignalEnabled,
 				func(c *config.Config, t *testing.T) {
-					expected := model.Addons{
-						Rescheduler: model.Rescheduler{
+					expected := clusterapi.Addons{
+						Rescheduler: clusterapi.Rescheduler{
 							Enabled: true,
 						},
-						ClusterAutoscaler: model.ClusterAutoscalerSupport{
+						ClusterAutoscaler: clusterapi.ClusterAutoscalerSupport{
 							Enabled: true,
 							Options: map[string]string{"v": "5", "test": "present"},
 						},
-						MetricsServer: model.MetricsServer{
+						MetricsServer: clusterapi.MetricsServer{
 							Enabled: true,
 						},
-						APIServerAggregator: model.APIServerAggregator{
+						APIServerAggregator: clusterapi.APIServerAggregator{
 							Enabled: true,
 						},
 					}
@@ -811,34 +810,34 @@ etcd:
 `,
 			assertConfig: []ConfigTester{
 				func(c *config.Config, t *testing.T) {
-					subnet1 := model.NewPublicSubnet(firstAz, "10.0.0.0/24")
+					subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
 					subnet1.Name = "Subnet0"
 					expected := controlplane_config.EtcdSettings{
-						Etcd: model.Etcd{
-							Cluster: model.EtcdCluster{
+						Etcd: clusterapi.Etcd{
+							Cluster: clusterapi.EtcdCluster{
 								MemberIdentityProvider: "eip",
 							},
-							EC2Instance: model.EC2Instance{
+							EC2Instance: clusterapi.EC2Instance{
 								Count:        1,
 								InstanceType: "t2.medium",
 								Tenancy:      "default",
-								RootVolume: model.RootVolume{
+								RootVolume: clusterapi.RootVolume{
 									Size: 30,
 									Type: "gp2",
 									IOPS: 0,
 								},
 							},
-							DataVolume: model.DataVolume{
+							DataVolume: clusterapi.DataVolume{
 								Size:      30,
 								Type:      "gp2",
 								IOPS:      0,
 								Ephemeral: false,
 							},
-							Subnets: model.Subnets{
+							Subnets: clusterapi.Subnets{
 								subnet1,
 							},
-							UserSuppliedArgs: model.UserSuppliedArgs{
-								QuotaBackendBytes: model.DefaultQuotaBackendBytes,
+							UserSuppliedArgs: clusterapi.UserSuppliedArgs{
+								QuotaBackendBytes: clusterapi.DefaultQuotaBackendBytes,
 							},
 						},
 					}
@@ -871,34 +870,34 @@ etcd:
 `,
 			assertConfig: []ConfigTester{
 				func(c *config.Config, t *testing.T) {
-					subnet1 := model.NewPublicSubnet(firstAz, "10.0.0.0/24")
+					subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
 					subnet1.Name = "Subnet0"
 					expected := controlplane_config.EtcdSettings{
-						Etcd: model.Etcd{
-							EC2Instance: model.EC2Instance{
+						Etcd: clusterapi.Etcd{
+							EC2Instance: clusterapi.EC2Instance{
 								Count:        1,
 								InstanceType: "t2.medium",
-								RootVolume: model.RootVolume{
+								RootVolume: clusterapi.RootVolume{
 									Size: 30,
 									Type: "gp2",
 									IOPS: 0,
 								},
 								Tenancy: "default",
 							},
-							DataVolume: model.DataVolume{
+							DataVolume: clusterapi.DataVolume{
 								Size:      30,
 								Type:      "gp2",
 								IOPS:      0,
 								Ephemeral: false,
 							},
-							Cluster: model.EtcdCluster{
+							Cluster: clusterapi.EtcdCluster{
 								MemberIdentityProvider: "eni",
 							},
-							Subnets: model.Subnets{
+							Subnets: clusterapi.Subnets{
 								subnet1,
 							},
-							UserSuppliedArgs: model.UserSuppliedArgs{
-								QuotaBackendBytes: model.DefaultQuotaBackendBytes,
+							UserSuppliedArgs: clusterapi.UserSuppliedArgs{
+								QuotaBackendBytes: clusterapi.DefaultQuotaBackendBytes,
 							},
 						},
 					}
@@ -932,35 +931,35 @@ etcd:
 `,
 			assertConfig: []ConfigTester{
 				func(c *config.Config, t *testing.T) {
-					subnet1 := model.NewPublicSubnet(firstAz, "10.0.0.0/24")
+					subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
 					subnet1.Name = "Subnet0"
 					expected := controlplane_config.EtcdSettings{
-						Etcd: model.Etcd{
-							Cluster: model.EtcdCluster{
+						Etcd: clusterapi.Etcd{
+							Cluster: clusterapi.EtcdCluster{
 								MemberIdentityProvider: "eni",
 								InternalDomainName:     "internal.example.com",
 							},
-							EC2Instance: model.EC2Instance{
+							EC2Instance: clusterapi.EC2Instance{
 								Count:        1,
 								InstanceType: "t2.medium",
-								RootVolume: model.RootVolume{
+								RootVolume: clusterapi.RootVolume{
 									Size: 30,
 									Type: "gp2",
 									IOPS: 0,
 								},
 								Tenancy: "default",
 							},
-							DataVolume: model.DataVolume{
+							DataVolume: clusterapi.DataVolume{
 								Size:      30,
 								Type:      "gp2",
 								IOPS:      0,
 								Ephemeral: false,
 							},
-							Subnets: model.Subnets{
+							Subnets: clusterapi.Subnets{
 								subnet1,
 							},
-							UserSuppliedArgs: model.UserSuppliedArgs{
-								QuotaBackendBytes: model.DefaultQuotaBackendBytes,
+							UserSuppliedArgs: clusterapi.UserSuppliedArgs{
+								QuotaBackendBytes: clusterapi.DefaultQuotaBackendBytes,
 							},
 						},
 					}
@@ -998,46 +997,46 @@ etcd:
 `,
 			assertConfig: []ConfigTester{
 				func(c *config.Config, t *testing.T) {
-					subnet1 := model.NewPublicSubnet(firstAz, "10.0.0.0/24")
+					subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
 					subnet1.Name = "Subnet0"
 					expected := controlplane_config.EtcdSettings{
-						Etcd: model.Etcd{
-							Cluster: model.EtcdCluster{
+						Etcd: clusterapi.Etcd{
+							Cluster: clusterapi.EtcdCluster{
 								MemberIdentityProvider: "eni",
 								InternalDomainName:     "internal.example.com",
 							},
-							EC2Instance: model.EC2Instance{
+							EC2Instance: clusterapi.EC2Instance{
 								Count:        1,
 								InstanceType: "t2.medium",
-								RootVolume: model.RootVolume{
+								RootVolume: clusterapi.RootVolume{
 									Size: 30,
 									Type: "gp2",
 									IOPS: 0,
 								},
 								Tenancy: "default",
 							},
-							DataVolume: model.DataVolume{
+							DataVolume: clusterapi.DataVolume{
 								Size:      30,
 								Type:      "gp2",
 								IOPS:      0,
 								Ephemeral: false,
 							},
-							Nodes: []model.EtcdNode{
-								model.EtcdNode{
+							Nodes: []clusterapi.EtcdNode{
+								clusterapi.EtcdNode{
 									FQDN: "etcd1a.internal.example.com",
 								},
-								model.EtcdNode{
+								clusterapi.EtcdNode{
 									FQDN: "etcd1b.internal.example.com",
 								},
-								model.EtcdNode{
+								clusterapi.EtcdNode{
 									FQDN: "etcd1c.internal.example.com",
 								},
 							},
-							Subnets: model.Subnets{
+							Subnets: clusterapi.Subnets{
 								subnet1,
 							},
-							UserSuppliedArgs: model.UserSuppliedArgs{
-								QuotaBackendBytes: model.DefaultQuotaBackendBytes,
+							UserSuppliedArgs: clusterapi.UserSuppliedArgs{
+								QuotaBackendBytes: clusterapi.DefaultQuotaBackendBytes,
 							},
 						},
 					}
@@ -1075,46 +1074,46 @@ etcd:
 `,
 			assertConfig: []ConfigTester{
 				func(c *config.Config, t *testing.T) {
-					subnet1 := model.NewPublicSubnet(firstAz, "10.0.0.0/24")
+					subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
 					subnet1.Name = "Subnet0"
 					expected := controlplane_config.EtcdSettings{
-						Etcd: model.Etcd{
-							Cluster: model.EtcdCluster{
+						Etcd: clusterapi.Etcd{
+							Cluster: clusterapi.EtcdCluster{
 								MemberIdentityProvider: "eni",
 								InternalDomainName:     "internal.example.com",
 							},
-							EC2Instance: model.EC2Instance{
+							EC2Instance: clusterapi.EC2Instance{
 								Count:        1,
 								InstanceType: "t2.medium",
-								RootVolume: model.RootVolume{
+								RootVolume: clusterapi.RootVolume{
 									Size: 30,
 									Type: "gp2",
 									IOPS: 0,
 								},
 								Tenancy: "default",
 							},
-							DataVolume: model.DataVolume{
+							DataVolume: clusterapi.DataVolume{
 								Size:      30,
 								Type:      "gp2",
 								IOPS:      0,
 								Ephemeral: false,
 							},
-							Nodes: []model.EtcdNode{
-								model.EtcdNode{
+							Nodes: []clusterapi.EtcdNode{
+								clusterapi.EtcdNode{
 									Name: "etcd1a",
 								},
-								model.EtcdNode{
+								clusterapi.EtcdNode{
 									Name: "etcd1b",
 								},
-								model.EtcdNode{
+								clusterapi.EtcdNode{
 									Name: "etcd1c",
 								},
 							},
-							Subnets: model.Subnets{
+							Subnets: clusterapi.Subnets{
 								subnet1,
 							},
-							UserSuppliedArgs: model.UserSuppliedArgs{
-								QuotaBackendBytes: model.DefaultQuotaBackendBytes,
+							UserSuppliedArgs: clusterapi.UserSuppliedArgs{
+								QuotaBackendBytes: clusterapi.DefaultQuotaBackendBytes,
 							},
 						},
 					}
@@ -1153,48 +1152,48 @@ etcd:
 `,
 			assertConfig: []ConfigTester{
 				func(c *config.Config, t *testing.T) {
-					subnet1 := model.NewPublicSubnet(firstAz, "10.0.0.0/24")
+					subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
 					subnet1.Name = "Subnet0"
 					manageRecordSets := false
 					expected := controlplane_config.EtcdSettings{
-						Etcd: model.Etcd{
-							Cluster: model.EtcdCluster{
+						Etcd: clusterapi.Etcd{
+							Cluster: clusterapi.EtcdCluster{
 								ManageRecordSets:       &manageRecordSets,
 								MemberIdentityProvider: "eni",
 								InternalDomainName:     "internal.example.com",
 							},
-							EC2Instance: model.EC2Instance{
+							EC2Instance: clusterapi.EC2Instance{
 								Count:        1,
 								InstanceType: "t2.medium",
-								RootVolume: model.RootVolume{
+								RootVolume: clusterapi.RootVolume{
 									Size: 30,
 									Type: "gp2",
 									IOPS: 0,
 								},
 								Tenancy: "default",
 							},
-							DataVolume: model.DataVolume{
+							DataVolume: clusterapi.DataVolume{
 								Size:      30,
 								Type:      "gp2",
 								IOPS:      0,
 								Ephemeral: false,
 							},
-							Nodes: []model.EtcdNode{
-								model.EtcdNode{
+							Nodes: []clusterapi.EtcdNode{
+								clusterapi.EtcdNode{
 									Name: "etcd1a",
 								},
-								model.EtcdNode{
+								clusterapi.EtcdNode{
 									Name: "etcd1b",
 								},
-								model.EtcdNode{
+								clusterapi.EtcdNode{
 									Name: "etcd1c",
 								},
 							},
-							Subnets: model.Subnets{
+							Subnets: clusterapi.Subnets{
 								subnet1,
 							},
-							UserSuppliedArgs: model.UserSuppliedArgs{
-								QuotaBackendBytes: model.DefaultQuotaBackendBytes,
+							UserSuppliedArgs: clusterapi.UserSuppliedArgs{
+								QuotaBackendBytes: clusterapi.DefaultQuotaBackendBytes,
 							},
 						},
 					}
@@ -1234,47 +1233,47 @@ etcd:
 `,
 			assertConfig: []ConfigTester{
 				func(c *config.Config, t *testing.T) {
-					subnet1 := model.NewPublicSubnet(firstAz, "10.0.0.0/24")
+					subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
 					subnet1.Name = "Subnet0"
 					expected := controlplane_config.EtcdSettings{
-						Etcd: model.Etcd{
-							Cluster: model.EtcdCluster{
-								HostedZone:             model.Identifier{ID: "hostedzone-abcdefg"},
+						Etcd: clusterapi.Etcd{
+							Cluster: clusterapi.EtcdCluster{
+								HostedZone:             clusterapi.Identifier{ID: "hostedzone-abcdefg"},
 								MemberIdentityProvider: "eni",
 								InternalDomainName:     "internal.example.com",
 							},
-							EC2Instance: model.EC2Instance{
+							EC2Instance: clusterapi.EC2Instance{
 								Count:        1,
 								InstanceType: "t2.medium",
-								RootVolume: model.RootVolume{
+								RootVolume: clusterapi.RootVolume{
 									Size: 30,
 									Type: "gp2",
 									IOPS: 0,
 								},
 								Tenancy: "default",
 							},
-							DataVolume: model.DataVolume{
+							DataVolume: clusterapi.DataVolume{
 								Size:      30,
 								Type:      "gp2",
 								IOPS:      0,
 								Ephemeral: false,
 							},
-							Nodes: []model.EtcdNode{
-								model.EtcdNode{
+							Nodes: []clusterapi.EtcdNode{
+								clusterapi.EtcdNode{
 									Name: "etcd1a",
 								},
-								model.EtcdNode{
+								clusterapi.EtcdNode{
 									Name: "etcd1b",
 								},
-								model.EtcdNode{
+								clusterapi.EtcdNode{
 									Name: "etcd1c",
 								},
 							},
-							Subnets: model.Subnets{
+							Subnets: clusterapi.Subnets{
 								subnet1,
 							},
-							UserSuppliedArgs: model.UserSuppliedArgs{
-								QuotaBackendBytes: model.DefaultQuotaBackendBytes,
+							UserSuppliedArgs: clusterapi.UserSuppliedArgs{
+								QuotaBackendBytes: clusterapi.DefaultQuotaBackendBytes,
 							},
 						},
 					}
@@ -1428,7 +1427,7 @@ worker:
 						AwsNodeLabels: controlplane_config.AwsNodeLabels{
 							Enabled: true,
 						},
-						ClusterAutoscalerSupport: model.ClusterAutoscalerSupport{
+						ClusterAutoscalerSupport: clusterapi.ClusterAutoscalerSupport{
 							Enabled: true,
 							Options: map[string]string{},
 						},
@@ -1442,7 +1441,7 @@ worker:
 						},
 						KIAMSupport: controlplane_config.KIAMSupport{
 							Enabled:         false,
-							Image:           model.Image{Repo: "quay.io/uswitch/kiam", Tag: "v2.8", RktPullDocker: false},
+							Image:           clusterapi.Image{Repo: "quay.io/uswitch/kiam", Tag: "v2.8", RktPullDocker: false},
 							SessionDuration: "15m",
 							ServerAddresses: controlplane_config.KIAMServerAddresses{ServerAddress: "localhost:443", AgentAddress: "kiam-server:443"},
 						},
@@ -1465,14 +1464,14 @@ worker:
 							Arns:             []string{"arn:aws:elasticloadbalancing:eu-west-1:xxxxxxxxxxxx:targetgroup/manuallymanagedetg/xxxxxxxxxxxxxxxx"},
 							SecurityGroupIds: []string{"sg-12345678"},
 						},
-						Oidc: model.Oidc{
+						Oidc: clusterapi.Oidc{
 							Enabled:       true,
 							IssuerUrl:     "https://accounts.google.com",
 							ClientId:      "kubernetes",
 							UsernameClaim: "email",
 							GroupsClaim:   "groups",
 						},
-						NodeDrainer: model.NodeDrainer{
+						NodeDrainer: clusterapi.NodeDrainer{
 							Enabled:      true,
 							DrainTimeout: 3,
 						},
@@ -1495,7 +1494,7 @@ worker:
 				hasDefaultCluster,
 				func(c root.Cluster, t *testing.T) {
 					cp := c.ControlPlane()
-					controllerUserdataS3Part := cp.UserDataController.Parts[model.USERDATA_S3].Asset.Content
+					controllerUserdataS3Part := cp.UserDataController.Parts[clusterapi.USERDATA_S3].Asset.Content
 					if !strings.Contains(controllerUserdataS3Part, `--feature-gates=PodPriority=true`) {
 						t.Error("missing controller feature gate: PodPriority=true")
 					}
@@ -1579,7 +1578,7 @@ worker:
 						AwsNodeLabels: controlplane_config.AwsNodeLabels{
 							Enabled: true,
 						},
-						ClusterAutoscalerSupport: model.ClusterAutoscalerSupport{
+						ClusterAutoscalerSupport: clusterapi.ClusterAutoscalerSupport{
 							Enabled: true,
 							Options: map[string]string{},
 						},
@@ -1604,7 +1603,7 @@ worker:
 							Arns:             []string{"arn:aws:elasticloadbalancing:eu-west-1:xxxxxxxxxxxx:targetgroup/manuallymanagedetg/xxxxxxxxxxxxxxxx"},
 							SecurityGroupIds: []string{"sg-12345678"},
 						},
-						NodeDrainer: model.NodeDrainer{
+						NodeDrainer: clusterapi.NodeDrainer{
 							Enabled:      false,
 							DrainTimeout: 0,
 						},
@@ -1614,7 +1613,7 @@ worker:
 						t.Errorf("experimental settings for node pool didn't match : expected=%v actual=%v", expected, p.Experimental)
 					}
 
-					expectedNodeLabels := model.NodeLabels{
+					expectedNodeLabels := clusterapi.NodeLabels{
 						"kube-aws.coreos.com/cluster-autoscaler-supported": "true",
 						"kube-aws.coreos.com/role":                         "worker",
 					}
@@ -1623,7 +1622,7 @@ worker:
 						t.Errorf("worker node labels didn't match: expected=%v, actual=%v", expectedNodeLabels, actualNodeLabels)
 					}
 
-					expectedTaints := model.Taints{
+					expectedTaints := clusterapi.Taints{
 						{Key: "reservation", Value: "spot", Effect: "NoSchedule"},
 					}
 					actualTaints := c.NodePools[0].Taints
@@ -1654,7 +1653,7 @@ worker:
 				func(c *config.Config, t *testing.T) {
 					expected := controlplane_config.KIAMSupport{
 						Enabled:         true,
-						Image:           model.Image{Repo: "quay.io/uswitch/kiam", Tag: "v2.6", RktPullDocker: false},
+						Image:           clusterapi.Image{Repo: "quay.io/uswitch/kiam", Tag: "v2.6", RktPullDocker: false},
 						SessionDuration: "30m",
 						ServerAddresses: controlplane_config.KIAMServerAddresses{ServerAddress: "localhost", AgentAddress: "kiam-server"},
 					}
@@ -1686,7 +1685,7 @@ worker:
 					expected := controlplane_config.Experimental{
 						KIAMSupport: controlplane_config.KIAMSupport{
 							Enabled:         true,
-							Image:           model.Image{Repo: "quay.io/uswitch/kiam", Tag: "v2.8", RktPullDocker: false},
+							Image:           clusterapi.Image{Repo: "quay.io/uswitch/kiam", Tag: "v2.8", RktPullDocker: false},
 							SessionDuration: "15m",
 							ServerAddresses: controlplane_config.KIAMServerAddresses{ServerAddress: "localhost:443", AgentAddress: "kiam-server:443"},
 						},
@@ -2083,19 +2082,19 @@ apiEndpoints:
 				func(rootCluster root.Cluster, t *testing.T) {
 					c := rootCluster.ControlPlane()
 
-					private1 := model.NewPrivateSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-PrivateSubnet1"}}`)
+					private1 := clusterapi.NewPrivateSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-PrivateSubnet1"}}`)
 					private1.Name = "privateSubnet1"
 
-					private2 := model.NewPrivateSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-PrivateSubnet2"}}`)
+					private2 := clusterapi.NewPrivateSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-PrivateSubnet2"}}`)
 					private2.Name = "privateSubnet2"
 
-					public1 := model.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-PublicSubnet1"}}`)
+					public1 := clusterapi.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-PublicSubnet1"}}`)
 					public1.Name = "publicSubnet1"
 
-					public2 := model.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-PublicSubnet2"}}`)
+					public2 := clusterapi.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-PublicSubnet2"}}`)
 					public2.Name = "publicSubnet2"
 
-					subnets := model.Subnets{
+					subnets := clusterapi.Subnets{
 						private1,
 						private2,
 						public1,
@@ -2105,12 +2104,12 @@ apiEndpoints:
 						t.Errorf("Managed subnets didn't match: expected=%+v actual=%+v", subnets, c.AllSubnets())
 					}
 
-					publicSubnets := model.Subnets{
+					publicSubnets := clusterapi.Subnets{
 						public1,
 						public2,
 					}
 
-					privateSubnets := model.Subnets{
+					privateSubnets := clusterapi.Subnets{
 						private1,
 						private2,
 					}
@@ -2138,15 +2137,15 @@ apiEndpoints:
 						t.Errorf("unversionedPrivate: it should be enabled as the lb to which controller nodes are added, but it was not: loadBalancer=%+v", unversionedPrivate.LoadBalancer)
 					}
 
-					if !reflect.DeepEqual(versionedPublic.LoadBalancer.Subnets, model.Subnets{public1}) {
-						t.Errorf("versionedPublic: subnets didn't match: expected=%+v actual=%+v", model.Subnets{public1}, versionedPublic.LoadBalancer.Subnets)
+					if !reflect.DeepEqual(versionedPublic.LoadBalancer.Subnets, clusterapi.Subnets{public1}) {
+						t.Errorf("versionedPublic: subnets didn't match: expected=%+v actual=%+v", clusterapi.Subnets{public1}, versionedPublic.LoadBalancer.Subnets)
 					}
 					if !versionedPublic.LoadBalancer.Enabled() {
 						t.Errorf("versionedPublic: it should be enabled as the lb to which controller nodes are added, but it was not: loadBalancer=%+v", versionedPublic.LoadBalancer)
 					}
 
-					if !reflect.DeepEqual(versionedPrivate.LoadBalancer.Subnets, model.Subnets{private1}) {
-						t.Errorf("versionedPrivate: subnets didn't match: expected=%+v actual=%+v", model.Subnets{private1}, versionedPrivate.LoadBalancer.Subnets)
+					if !reflect.DeepEqual(versionedPrivate.LoadBalancer.Subnets, clusterapi.Subnets{private1}) {
+						t.Errorf("versionedPrivate: subnets didn't match: expected=%+v actual=%+v", clusterapi.Subnets{private1}, versionedPrivate.LoadBalancer.Subnets)
 					}
 					if !versionedPrivate.LoadBalancer.Enabled() {
 						t.Errorf("versionedPrivate: it should be enabled as the lb to which controller nodes are added, but it was not: loadBalancer=%+v", versionedPrivate.LoadBalancer)
@@ -2243,19 +2242,19 @@ worker:
 				everyPublicSubnetHasRouteToIGW,
 				hasTwoManagedNGWsAndEIPs,
 				func(c *config.Config, t *testing.T) {
-					private1 := model.NewPrivateSubnet("us-west-1a", "10.0.1.0/24")
+					private1 := clusterapi.NewPrivateSubnet("us-west-1a", "10.0.1.0/24")
 					private1.Name = "private1"
 
-					private2 := model.NewPrivateSubnet("us-west-1b", "10.0.2.0/24")
+					private2 := clusterapi.NewPrivateSubnet("us-west-1b", "10.0.2.0/24")
 					private2.Name = "private2"
 
-					public1 := model.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
+					public1 := clusterapi.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
 					public1.Name = "public1"
 
-					public2 := model.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
+					public2 := clusterapi.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
 					public2.Name = "public2"
 
-					subnets := model.Subnets{
+					subnets := clusterapi.Subnets{
 						private1,
 						private2,
 						public1,
@@ -2265,13 +2264,13 @@ worker:
 						t.Errorf("Managed subnets didn't match: expected=%v actual=%v", subnets, c.AllSubnets())
 					}
 
-					publicSubnets := model.Subnets{
+					publicSubnets := clusterapi.Subnets{
 						public1,
 						public2,
 					}
-					importedPublicSubnets := model.Subnets{
-						model.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public1"}}`),
-						model.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public2"}}`),
+					importedPublicSubnets := clusterapi.Subnets{
+						clusterapi.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public1"}}`),
+						clusterapi.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public2"}}`),
 					}
 
 					p := c.NodePools[0]
@@ -2279,7 +2278,7 @@ worker:
 						t.Errorf("Worker subnets didn't match: expected=%v actual=%v", importedPublicSubnets, p.Subnets)
 					}
 
-					privateSubnets := model.Subnets{
+					privateSubnets := clusterapi.Subnets{
 						private1,
 						private2,
 					}
@@ -2336,19 +2335,19 @@ subnets:
 				everyPublicSubnetHasRouteToIGW,
 				hasTwoManagedNGWsAndEIPs,
 				func(c *config.Config, t *testing.T) {
-					private1 := model.NewPrivateSubnet("us-west-1a", "10.0.1.0/24")
+					private1 := clusterapi.NewPrivateSubnet("us-west-1a", "10.0.1.0/24")
 					private1.Name = "private1"
 
-					private2 := model.NewPrivateSubnet("us-west-1b", "10.0.2.0/24")
+					private2 := clusterapi.NewPrivateSubnet("us-west-1b", "10.0.2.0/24")
 					private2.Name = "private2"
 
-					public1 := model.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
+					public1 := clusterapi.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
 					public1.Name = "public1"
 
-					public2 := model.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
+					public2 := clusterapi.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
 					public2.Name = "public2"
 
-					subnets := model.Subnets{
+					subnets := clusterapi.Subnets{
 						private1,
 						private2,
 						public1,
@@ -2358,7 +2357,7 @@ subnets:
 						t.Errorf("Managed subnets didn't match: expected=%v actual=%v", subnets, c.AllSubnets())
 					}
 
-					publicSubnets := model.Subnets{
+					publicSubnets := clusterapi.Subnets{
 						public1,
 						public2,
 					}
@@ -2432,19 +2431,19 @@ worker:
 				everyPublicSubnetHasRouteToIGW,
 				hasTwoManagedNGWsAndEIPs,
 				func(c *config.Config, t *testing.T) {
-					private1 := model.NewPrivateSubnet("us-west-1a", "10.0.1.0/24")
+					private1 := clusterapi.NewPrivateSubnet("us-west-1a", "10.0.1.0/24")
 					private1.Name = "private1"
 
-					private2 := model.NewPrivateSubnet("us-west-1b", "10.0.2.0/24")
+					private2 := clusterapi.NewPrivateSubnet("us-west-1b", "10.0.2.0/24")
 					private2.Name = "private2"
 
-					public1 := model.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
+					public1 := clusterapi.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
 					public1.Name = "public1"
 
-					public2 := model.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
+					public2 := clusterapi.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
 					public2.Name = "public2"
 
-					subnets := model.Subnets{
+					subnets := clusterapi.Subnets{
 						private1,
 						private2,
 						public1,
@@ -2454,16 +2453,16 @@ worker:
 						t.Errorf("Managed subnets didn't match: expected=%v actual=%v", subnets, c.AllSubnets())
 					}
 
-					importedPublicSubnets := model.Subnets{
-						model.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public1"}}`),
-						model.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public2"}}`),
+					importedPublicSubnets := clusterapi.Subnets{
+						clusterapi.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public1"}}`),
+						clusterapi.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public2"}}`),
 					}
 					p := c.NodePools[0]
 					if !reflect.DeepEqual(p.Subnets, importedPublicSubnets) {
 						t.Errorf("Worker subnets didn't match: expected=%v actual=%v", importedPublicSubnets, p.Subnets)
 					}
 
-					privateSubnets := model.Subnets{
+					privateSubnets := clusterapi.Subnets{
 						private1,
 						private2,
 					}
@@ -2533,35 +2532,35 @@ worker:
 				everyPublicSubnetHasRouteToIGW,
 				hasTwoManagedNGWsAndEIPs,
 				func(c *config.Config, t *testing.T) {
-					private1 := model.NewPrivateSubnet("us-west-1a", "10.0.1.0/24")
+					private1 := clusterapi.NewPrivateSubnet("us-west-1a", "10.0.1.0/24")
 					private1.Name = "private1"
 
-					private2 := model.NewPrivateSubnet("us-west-1b", "10.0.2.0/24")
+					private2 := clusterapi.NewPrivateSubnet("us-west-1b", "10.0.2.0/24")
 					private2.Name = "private2"
 
-					public1 := model.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
+					public1 := clusterapi.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
 					public1.Name = "public1"
 
-					public2 := model.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
+					public2 := clusterapi.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
 					public2.Name = "public2"
 
-					subnets := model.Subnets{
+					subnets := clusterapi.Subnets{
 						private1,
 						private2,
 						public1,
 						public2,
 					}
-					publicSubnets := model.Subnets{
+					publicSubnets := clusterapi.Subnets{
 						public1,
 						public2,
 					}
-					privateSubnets := model.Subnets{
+					privateSubnets := clusterapi.Subnets{
 						private1,
 						private2,
 					}
-					importedPublicSubnets := model.Subnets{
-						model.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public1"}}`),
-						model.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public2"}}`),
+					importedPublicSubnets := clusterapi.Subnets{
+						clusterapi.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public1"}}`),
+						clusterapi.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public2"}}`),
 					}
 
 					if !reflect.DeepEqual(c.AllSubnets(), subnets) {
@@ -2631,29 +2630,29 @@ worker:
 				hasDefaultExperimentalFeatures,
 				hasNoNGWsOrEIPsOrRoutes,
 				func(c *config.Config, t *testing.T) {
-					private1 := model.NewExistingPrivateSubnet("us-west-1a", "subnet-1")
+					private1 := clusterapi.NewExistingPrivateSubnet("us-west-1a", "subnet-1")
 					private1.Name = "private1"
 
-					private2 := model.NewImportedPrivateSubnet("us-west-1b", "mycluster-private-subnet-1")
+					private2 := clusterapi.NewImportedPrivateSubnet("us-west-1b", "mycluster-private-subnet-1")
 					private2.Name = "private2"
 
-					public1 := model.NewExistingPublicSubnet("us-west-1a", "subnet-2")
+					public1 := clusterapi.NewExistingPublicSubnet("us-west-1a", "subnet-2")
 					public1.Name = "public1"
 
-					public2 := model.NewImportedPublicSubnet("us-west-1b", "mycluster-public-subnet-1")
+					public2 := clusterapi.NewImportedPublicSubnet("us-west-1b", "mycluster-public-subnet-1")
 					public2.Name = "public2"
 
-					subnets := model.Subnets{
+					subnets := clusterapi.Subnets{
 						private1,
 						private2,
 						public1,
 						public2,
 					}
-					publicSubnets := model.Subnets{
+					publicSubnets := clusterapi.Subnets{
 						public1,
 						public2,
 					}
-					privateSubnets := model.Subnets{
+					privateSubnets := clusterapi.Subnets{
 						private1,
 						private2,
 					}
@@ -2797,35 +2796,35 @@ worker:
 				hasDefaultExperimentalFeatures,
 				hasNoManagedNGWsButSpecificNumOfRoutesToUnmanagedNGWs(2),
 				func(c *config.Config, t *testing.T) {
-					private1 := model.NewPrivateSubnetWithPreconfiguredNATGateway("us-west-1a", "10.0.1.0/24", "ngw-11111111")
+					private1 := clusterapi.NewPrivateSubnetWithPreconfiguredNATGateway("us-west-1a", "10.0.1.0/24", "ngw-11111111")
 					private1.Name = "private1"
 
-					private2 := model.NewPrivateSubnetWithPreconfiguredNATGateway("us-west-1b", "10.0.2.0/24", "ngw-22222222")
+					private2 := clusterapi.NewPrivateSubnetWithPreconfiguredNATGateway("us-west-1b", "10.0.2.0/24", "ngw-22222222")
 					private2.Name = "private2"
 
-					public1 := model.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
+					public1 := clusterapi.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
 					public1.Name = "public1"
 
-					public2 := model.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
+					public2 := clusterapi.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
 					public2.Name = "public2"
 
-					subnets := model.Subnets{
+					subnets := clusterapi.Subnets{
 						private1,
 						private2,
 						public1,
 						public2,
 					}
-					publicSubnets := model.Subnets{
+					publicSubnets := clusterapi.Subnets{
 						public1,
 						public2,
 					}
-					privateSubnets := model.Subnets{
+					privateSubnets := clusterapi.Subnets{
 						private1,
 						private2,
 					}
-					importedPublicSubnets := model.Subnets{
-						model.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public1"}}`),
-						model.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public2"}}`),
+					importedPublicSubnets := clusterapi.Subnets{
+						clusterapi.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public1"}}`),
+						clusterapi.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public2"}}`),
 					}
 
 					if !reflect.DeepEqual(c.AllSubnets(), subnets) {
@@ -2899,35 +2898,35 @@ worker:
 				hasSpecificNumOfManagedNGWsWithUnmanagedEIPs(2),
 				hasPrivateSubnetsWithManagedNGWs(2),
 				func(c *config.Config, t *testing.T) {
-					private1 := model.NewPrivateSubnetWithPreconfiguredNATGatewayEIP("us-west-1a", "10.0.1.0/24", "eipalloc-11111111")
+					private1 := clusterapi.NewPrivateSubnetWithPreconfiguredNATGatewayEIP("us-west-1a", "10.0.1.0/24", "eipalloc-11111111")
 					private1.Name = "private1"
 
-					private2 := model.NewPrivateSubnetWithPreconfiguredNATGatewayEIP("us-west-1b", "10.0.2.0/24", "eipalloc-22222222")
+					private2 := clusterapi.NewPrivateSubnetWithPreconfiguredNATGatewayEIP("us-west-1b", "10.0.2.0/24", "eipalloc-22222222")
 					private2.Name = "private2"
 
-					public1 := model.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
+					public1 := clusterapi.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
 					public1.Name = "public1"
 
-					public2 := model.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
+					public2 := clusterapi.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
 					public2.Name = "public2"
 
-					subnets := model.Subnets{
+					subnets := clusterapi.Subnets{
 						private1,
 						private2,
 						public1,
 						public2,
 					}
-					publicSubnets := model.Subnets{
+					publicSubnets := clusterapi.Subnets{
 						public1,
 						public2,
 					}
-					privateSubnets := model.Subnets{
+					privateSubnets := clusterapi.Subnets{
 						private1,
 						private2,
 					}
-					importedPublicSubnets := model.Subnets{
-						model.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public1"}}`),
-						model.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public2"}}`),
+					importedPublicSubnets := clusterapi.Subnets{
+						clusterapi.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public1"}}`),
+						clusterapi.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public2"}}`),
 					}
 
 					if !reflect.DeepEqual(c.AllSubnets(), subnets) {
@@ -3033,24 +3032,24 @@ worker:
 				hasDefaultExperimentalFeatures,
 				spotFleetBasedNodePoolHasWaitSignalDisabled,
 				func(c *config.Config, t *testing.T) {
-					expected := []model.LaunchSpecification{
+					expected := []clusterapi.LaunchSpecification{
 						{
 							WeightedCapacity: 1,
 							InstanceType:     "c4.large",
 							SpotPrice:        "",
 							// RootVolumeSize was not specified in the configYaml but should default to workerRootVolumeSize * weightedCapacity
 							// RootVolumeType was not specified in the configYaml but should default to "gp2"
-							RootVolume: model.NewGp2RootVolume(40),
+							RootVolume: clusterapi.NewGp2RootVolume(40),
 						},
 						{
 							WeightedCapacity: 2,
 							InstanceType:     "c4.xlarge",
 							SpotPrice:        "",
-							RootVolume:       model.NewGp2RootVolume(100),
+							RootVolume:       clusterapi.NewGp2RootVolume(100),
 						},
 					}
 					p := c.NodePools[0]
-					actual := p.NodePoolConfig.SpotFleet.LaunchSpecifications
+					actual := p.WorkerNodePool.SpotFleet.LaunchSpecifications
 					if !reflect.DeepEqual(expected, actual) {
 						t.Errorf(
 							"LaunchSpecifications didn't match: expected=%v actual=%v",
@@ -3080,23 +3079,23 @@ worker:
 				hasDefaultExperimentalFeatures,
 				spotFleetBasedNodePoolHasWaitSignalDisabled,
 				func(c *config.Config, t *testing.T) {
-					expected := []model.LaunchSpecification{
+					expected := []clusterapi.LaunchSpecification{
 						{
 							WeightedCapacity: 1,
 							InstanceType:     "m4.large",
 							SpotPrice:        "",
 							// RootVolumeType was not specified in the configYaml but should default to gp2:
-							RootVolume: model.NewGp2RootVolume(40),
+							RootVolume: clusterapi.NewGp2RootVolume(40),
 						},
 						{
 							WeightedCapacity: 2,
 							InstanceType:     "m4.xlarge",
 							SpotPrice:        "",
-							RootVolume:       model.NewGp2RootVolume(80),
+							RootVolume:       clusterapi.NewGp2RootVolume(80),
 						},
 					}
 					p := c.NodePools[0]
-					actual := p.NodePoolConfig.SpotFleet.LaunchSpecifications
+					actual := p.WorkerNodePool.SpotFleet.LaunchSpecifications
 					if !reflect.DeepEqual(expected, actual) {
 						t.Errorf(
 							"LaunchSpecifications didn't match: expected=%v actual=%v",
@@ -3130,7 +3129,7 @@ worker:
 				hasDefaultExperimentalFeatures,
 				spotFleetBasedNodePoolHasWaitSignalDisabled,
 				func(c *config.Config, t *testing.T) {
-					expected := []model.LaunchSpecification{
+					expected := []clusterapi.LaunchSpecification{
 						{
 							WeightedCapacity: 1,
 							InstanceType:     "c4.large",
@@ -3138,18 +3137,18 @@ worker:
 							// RootVolumeSize was not specified in the configYaml but should default to workerRootVolumeSize * weightedCapacity
 							// RootVolumeIOPS was not specified in the configYaml but should default to workerRootVolumeIOPS * weightedCapacity
 							// RootVolumeType was not specified in the configYaml but should default to "io1"
-							RootVolume: model.NewIo1RootVolume(40, 100),
+							RootVolume: clusterapi.NewIo1RootVolume(40, 100),
 						},
 						{
 							WeightedCapacity: 2,
 							InstanceType:     "c4.xlarge",
 							SpotPrice:        "",
 							// RootVolumeType was not specified in the configYaml but should default to:
-							RootVolume: model.NewIo1RootVolume(80, 500),
+							RootVolume: clusterapi.NewIo1RootVolume(80, 500),
 						},
 					}
 					p := c.NodePools[0]
-					actual := p.NodePoolConfig.SpotFleet.LaunchSpecifications
+					actual := p.WorkerNodePool.SpotFleet.LaunchSpecifications
 					if !reflect.DeepEqual(expected, actual) {
 						t.Errorf(
 							"LaunchSpecifications didn't match: expected=%v actual=%v",
@@ -3219,32 +3218,32 @@ subnets:
 			assertConfig: []ConfigTester{
 				hasDefaultExperimentalFeatures,
 				func(c *config.Config, t *testing.T) {
-					subnet1 := model.NewPublicSubnetWithPreconfiguredRouteTable(firstAz, "10.0.0.0/24", "rtb-1a2b3c4d")
+					subnet1 := clusterapi.NewPublicSubnetWithPreconfiguredRouteTable(firstAz, "10.0.0.0/24", "rtb-1a2b3c4d")
 					subnet1.Name = "Subnet0"
-					subnets := model.Subnets{
+					subnets := clusterapi.Subnets{
 						subnet1,
 					}
 					expected := controlplane_config.EtcdSettings{
-						Etcd: model.Etcd{
-							EC2Instance: model.EC2Instance{
+						Etcd: clusterapi.Etcd{
+							EC2Instance: clusterapi.EC2Instance{
 								Count:        1,
 								InstanceType: "t2.medium",
-								RootVolume: model.RootVolume{
+								RootVolume: clusterapi.RootVolume{
 									Size: 30,
 									Type: "gp2",
 									IOPS: 0,
 								},
 								Tenancy: "default",
 							},
-							DataVolume: model.DataVolume{
+							DataVolume: clusterapi.DataVolume{
 								Size:      30,
 								Type:      "gp2",
 								IOPS:      0,
 								Ephemeral: false,
 							},
 							Subnets: subnets,
-							UserSuppliedArgs: model.UserSuppliedArgs{
-								QuotaBackendBytes: model.DefaultQuotaBackendBytes,
+							UserSuppliedArgs: clusterapi.UserSuppliedArgs{
+								QuotaBackendBytes: clusterapi.DefaultQuotaBackendBytes,
 							},
 						},
 					}
@@ -3507,7 +3506,7 @@ controller:
 			assertConfig: []ConfigTester{
 				hasDefaultExperimentalFeatures,
 				func(c *config.Config, t *testing.T) {
-					expected := model.NodeLabels{"kube-aws.coreos.com/role": "controller"}
+					expected := clusterapi.NodeLabels{"kube-aws.coreos.com/role": "controller"}
 					actual := c.NodeLabels()
 					if !reflect.DeepEqual(expected, actual) {
 						t.Errorf("unexpected controller node labels: expected=%v, actual=%v", expected, actual)
@@ -3645,7 +3644,7 @@ worker:
 		t.Run(validCase.context, func(t *testing.T) {
 			configBytes := validCase.configYaml
 			// TODO Allow including plugins in test data?
-			plugins := []*pluginmodel.Plugin{}
+			plugins := []*clusterapi.Plugin{}
 			providedConfig, err := config.ConfigFromBytesWithStubs([]byte(configBytes), plugins, helper.DummyEncryptService{}, helper.DummyCFInterrogator{}, helper.DummyEC2Interrogator{})
 			if err != nil {
 				t.Errorf("failed to parse config %s: %v", configBytes, err)
@@ -3670,7 +3669,7 @@ worker:
 				stackTemplateOptions.NetworkStackTemplateTmplFile = "../../core/network/config/templates/stack-template.json"
 				stackTemplateOptions.EtcdStackTemplateTmplFile = "../../core/etcd/config/templates/stack-template.json"
 
-				cluster, err := root.ClusterFromConfig(providedConfig, stackTemplateOptions, false)
+				cluster, err := root.AggregatedClusterFromBytes(providedConfig, stackTemplateOptions, false)
 				if err != nil {
 					t.Errorf("failed to create cluster driver : %v", err)
 					t.FailNow()
@@ -4616,7 +4615,7 @@ worker:
 		t.Run(invalidCase.context, func(t *testing.T) {
 			configBytes := invalidCase.configYaml
 			// TODO Allow including plugins in test data?
-			plugins := []*pluginmodel.Plugin{}
+			plugins := []*clusterapi.Plugin{}
 			providedConfig, err := config.ConfigFromBytes([]byte(configBytes), plugins)
 			if err == nil {
 				t.Errorf("expected to fail parsing config %s: %+v", configBytes, *providedConfig)

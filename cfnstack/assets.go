@@ -3,29 +3,29 @@ package cfnstack
 import (
 	"fmt"
 	"github.com/kubernetes-incubator/kube-aws/fingerprint"
-	"github.com/kubernetes-incubator/kube-aws/model"
+	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 	"path/filepath"
 	"strings"
 )
 
 type Assets interface {
 	Merge(Assets) Assets
-	AsMap() map[model.AssetID]model.Asset
-	FindAssetByStackAndFileName(string, string) (model.Asset, error)
+	AsMap() map[clusterapi.AssetID]clusterapi.Asset
+	FindAssetByStackAndFileName(string, string) (clusterapi.Asset, error)
 }
 
 func EmptyAssets() assetsImpl {
 	return assetsImpl{
-		underlying: map[model.AssetID]model.Asset{},
+		underlying: map[clusterapi.AssetID]clusterapi.Asset{},
 	}
 }
 
 type assetsImpl struct {
-	underlying map[model.AssetID]model.Asset
+	underlying map[clusterapi.AssetID]clusterapi.Asset
 }
 
 func (a assetsImpl) Merge(other Assets) Assets {
-	merged := map[model.AssetID]model.Asset{}
+	merged := map[clusterapi.AssetID]clusterapi.Asset{}
 
 	for k, v := range a.underlying {
 		merged[k] = v
@@ -39,11 +39,11 @@ func (a assetsImpl) Merge(other Assets) Assets {
 	}
 }
 
-func (a assetsImpl) AsMap() map[model.AssetID]model.Asset {
+func (a assetsImpl) AsMap() map[clusterapi.AssetID]clusterapi.Asset {
 	return a.underlying
 }
 
-func (a assetsImpl) findAssetByID(id model.AssetID) (model.Asset, error) {
+func (a assetsImpl) findAssetByID(id clusterapi.AssetID) (clusterapi.Asset, error) {
 	asset, ok := a.underlying[id]
 	if !ok {
 		return asset, fmt.Errorf("[bug] failed to get the asset for the id \"%s\"", id)
@@ -51,28 +51,28 @@ func (a assetsImpl) findAssetByID(id model.AssetID) (model.Asset, error) {
 	return asset, nil
 }
 
-func (a assetsImpl) FindAssetByStackAndFileName(stack string, file string) (model.Asset, error) {
-	return a.findAssetByID(model.NewAssetID(stack, file))
+func (a assetsImpl) FindAssetByStackAndFileName(stack string, file string) (clusterapi.Asset, error) {
+	return a.findAssetByID(clusterapi.NewAssetID(stack, file))
 }
 
 type AssetsBuilder interface {
-	Add(filename string, content string) (model.Asset, error)
-	AddUserDataPart(userdata model.UserData, part string, assetName string) error
+	Add(filename string, content string) (clusterapi.Asset, error)
+	AddUserDataPart(userdata clusterapi.UserData, part string, assetName string) error
 	Build() Assets
 }
 
 type assetsBuilderImpl struct {
 	locProvider AssetLocationProvider
-	assets      map[model.AssetID]model.Asset
+	assets      map[clusterapi.AssetID]clusterapi.Asset
 }
 
-func (b *assetsBuilderImpl) Add(filename string, content string) (model.Asset, error) {
+func (b *assetsBuilderImpl) Add(filename string, content string) (clusterapi.Asset, error) {
 	loc, err := b.locProvider.locationFor(filename)
 	if err != nil {
-		return model.Asset{}, err
+		return clusterapi.Asset{}, err
 	}
 
-	asset := model.Asset{
+	asset := clusterapi.Asset{
 		AssetLocation: *loc,
 		Content:       content,
 	}
@@ -81,7 +81,7 @@ func (b *assetsBuilderImpl) Add(filename string, content string) (model.Asset, e
 	return asset, nil
 }
 
-func (b *assetsBuilderImpl) AddUserDataPart(userdata model.UserData, part string, assetName string) error {
+func (b *assetsBuilderImpl) AddUserDataPart(userdata clusterapi.UserData, part string, assetName string) error {
 	if p, ok := userdata.Parts[part]; ok {
 		content, err := p.Template()
 		if err != nil {
@@ -104,24 +104,24 @@ func (b *assetsBuilderImpl) Build() Assets {
 	}
 }
 
-func NewAssetsBuilder(stackName string, s3URI string, region model.Region) AssetsBuilder {
+func NewAssetsBuilder(stackName string, s3URI string, region clusterapi.Region) AssetsBuilder {
 	return &assetsBuilderImpl{
 		locProvider: AssetLocationProvider{
 			s3URI:     s3URI,
 			region:    region,
 			stackName: stackName,
 		},
-		assets: map[model.AssetID]model.Asset{},
+		assets: map[clusterapi.AssetID]clusterapi.Asset{},
 	}
 }
 
 type AssetLocationProvider struct {
 	s3URI     string
-	region    model.Region
+	region    clusterapi.Region
 	stackName string
 }
 
-func (p AssetLocationProvider) locationFor(filename string) (*model.AssetLocation, error) {
+func (p AssetLocationProvider) locationFor(filename string) (*clusterapi.AssetLocation, error) {
 	if filename == "" {
 		return nil, fmt.Errorf("Can't produce S3 location for empty filename")
 	}
@@ -143,9 +143,9 @@ func (p AssetLocationProvider) locationFor(filename string) (*model.AssetLocatio
 		"/",
 	)
 
-	id := model.NewAssetID(p.stackName, filename)
+	id := clusterapi.NewAssetID(p.stackName, filename)
 
-	return &model.AssetLocation{
+	return &clusterapi.AssetLocation{
 		ID:     id,
 		Key:    key,
 		Bucket: uri.Bucket(),

@@ -12,21 +12,25 @@ import (
 const CacheFileExtension = "enc"
 const FingerprintFileExtension = "fingerprint"
 
-func EncryptedCredentialCacheFromRawCredential(raw *PlaintextFile, encSvc KMSEncryptionService) (*EncryptedFile, error) {
-	encrypted, err := encSvc.Encrypt(raw.content)
+func CreateEncryptedFile(path string, bytes []byte, svc Encryptor) (*EncryptedFile, error) {
+	encrypted, err := svc.EncryptedBytes(bytes)
 	if err != nil {
 		return nil, err
 	}
 	cache := EncryptedFile{
-		filePath:            cacheFilePath(raw.filePath),
-		fingerprintFilePath: fingerprintFilePath(raw.filePath),
+		filePath:            cacheFilePath(path),
+		fingerprintFilePath: fingerprintFilePath(path),
 		content:             encrypted,
-		fingerprint:         raw.Fingerprint(),
+		fingerprint:         calculateFingerprint(bytes),
 	}
 	if err := cache.Persist(); err != nil {
 		return nil, err
 	}
 	return &cache, nil
+}
+
+func EncryptedCredentialCacheFromRawCredential(raw *PlaintextFile, encSvc Encryptor) (*EncryptedFile, error) {
+	return CreateEncryptedFile(raw.filePath, raw.content, encSvc)
 }
 
 func RawCredentialFileFromPath(filePath string, defaultValue *string) (*PlaintextFile, error) {

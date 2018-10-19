@@ -6,8 +6,7 @@ import (
 	"crypto/x509/pkix"
 	"errors"
 	"fmt"
-	"github.com/kubernetes-incubator/kube-aws/fingerprint"
-	"io/ioutil"
+	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 	"math"
 	"math/big"
 	"net"
@@ -15,67 +14,13 @@ import (
 )
 
 type PKI struct {
-	specs []KeyPairSpec
 }
 
-func NewPKI(specs []KeyPairSpec) *PKI {
-	return &PKI{
-		specs: specs,
-	}
+func NewPKI() *PKI {
+	return &PKI{}
 }
 
-func (pki *PKI) fileExists(path string) bool {
-	return false
-}
-
-func (pki *PKI) encrypt(pem []byte) ([]byte, error) {
-	return nil, nil
-}
-
-func (pki *PKI) write(path string, data []byte) error {
-	return ioutil.WriteFile(path, data, 0644)
-}
-
-func (pki *PKI) hash(data []byte) []byte {
-	return fingerprint.BytesToSha256(data)
-}
-
-func (pki *PKI) EnsureKeyPairsCreated(specs []KeyPairSpec) error {
-	for _, spec := range pki.specs {
-		keypath := spec.KeyPath()
-		shapath := spec.KeyPath() + ".fingerprint"
-		encpath := spec.EncryptedKeyPath()
-		crtpath := spec.CertPath()
-		if !pki.fileExists(encpath) && !pki.fileExists(crtpath) {
-			keypair, err := pki.GenerateKeyPair(spec)
-			if err != nil {
-				return err
-			}
-			keypem := keypair.KeyInPEM()
-			crtpem := keypair.CertInPEM()
-			keyenc, err := pki.encrypt(keypem)
-			if err != nil {
-				return err
-			}
-			if err := pki.write(keypath, keypem); err != nil {
-				return err
-			}
-			if err := pki.write(encpath, keyenc); err != nil {
-				return err
-			}
-			keysha := pki.hash(keypem)
-			if err := pki.write(shapath, keysha); err != nil {
-				return err
-			}
-			if err := pki.write(crtpath, crtpem); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func (pki *PKI) GenerateKeyPair(spec KeyPairSpec) (*KeyPair, error) {
+func (pki *PKI) GenerateKeyPair(spec clusterapi.KeyPairSpec) (*KeyPair, error) {
 	key, err := NewPrivateKey()
 	if err != nil {
 		return nil, err

@@ -2,8 +2,8 @@ package root
 
 import (
 	"fmt"
-	"github.com/kubernetes-incubator/kube-aws/core/controlplane/config"
 	"github.com/kubernetes-incubator/kube-aws/core/root/defaults"
+	"github.com/kubernetes-incubator/kube-aws/credential"
 	"github.com/kubernetes-incubator/kube-aws/logger"
 	"github.com/kubernetes-incubator/kube-aws/pki"
 	"io/ioutil"
@@ -12,9 +12,9 @@ import (
 	"strings"
 )
 
-func RenderCredentials(configPath string, renderCredentialsOpts config.CredentialsOptions) error {
-
-	cluster, err := config.ClusterFromFile(configPath)
+func RenderCredentials(configPath string, renderCredentialsOpts credential.CredentialsOptions) error {
+	opts := NewOptions(false, false)
+	cluster, err := AggregatedClusterFromFile(configPath, opts, renderCredentialsOpts.AwsDebug)
 	if err != nil {
 		return err
 	}
@@ -23,8 +23,11 @@ func RenderCredentials(configPath string, renderCredentialsOpts config.Credentia
 		return err
 	}
 
-	_, err = cluster.NewAssetsOnDisk(defaults.AssetsDir, renderCredentialsOpts)
-	return err
+	if _, err = cluster.NewAssetsOnDisk(defaults.AssetsDir, renderCredentialsOpts); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func LoadCertificates() (map[string]pki.Certificates, error) {

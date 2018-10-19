@@ -559,17 +559,10 @@ write_files:
 
   {{ if .Controller.CustomFiles -}}
   {{ range $i, $w := .Controller.CustomFiles -}}
-  {{ if $w.Encrypted -}}
-  - path: {{ $w.Path }}.enc
-    permissions: {{$w.PermissionsString}}
-    encoding: gzip+base64
-    content: {{$w.Content}}
-  {{ else -}}
   - path: {{$w.Path}}
     permissions: {{$w.PermissionsString}}
     encoding: gzip+base64
     content: {{$w.RenderGzippedBase64Content $}}
-  {{ end -}}
   {{ end -}}
   {{ end -}}
   - path: /etc/modules-load.d/ip_vs.conf
@@ -2271,7 +2264,7 @@ write_files:
              echo decrypting $encKey
              f=$(mktemp $encKey.XXXXXXXX)
              /usr/bin/aws \
-               --region {{.Region}} kms decrypt \
+               --region {{$.Region}} kms decrypt \
                --ciphertext-blob fileb://$encKey \
                --output text \
                --query Plaintext \
@@ -4434,8 +4427,7 @@ write_files:
     encoding: gzip+base64
     content: {{.KubernetesManifestPlugin.ManifestListFile.Content.ToGzip.ToBase64}}
 
-{{ range $m := .KubernetesManifestPlugin.Manifests }}
-{{ $f := $m.ManifestFile }}
+{{ range $f := .KubernetesManifestPlugin.Manifests }}
   - path: {{$f.Path}}
     encoding: gzip+base64
     content: {{$f.Content.ToGzip.ToBase64}}

@@ -6,13 +6,10 @@ import (
 	"io/ioutil"
 
 	"github.com/go-yaml/yaml"
-	"github.com/kubernetes-incubator/kube-aws/cfnstack"
-	controlplane "github.com/kubernetes-incubator/kube-aws/core/controlplane/config"
-	nodepool "github.com/kubernetes-incubator/kube-aws/core/nodepool/config"
-	"github.com/kubernetes-incubator/kube-aws/credential"
-	"github.com/kubernetes-incubator/kube-aws/model"
+	"github.com/kubernetes-incubator/kube-aws/pkg/cluster"
+	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 	"github.com/kubernetes-incubator/kube-aws/plugin"
-	"github.com/kubernetes-incubator/kube-aws/plugin/pluginmodel"
+	"github.com/kubernetes-incubator/kube-aws/plugin/clusterextension"
 )
 
 type InitialConfig struct {
@@ -24,28 +21,28 @@ type InitialConfig struct {
 	KMSKeyARN        string
 	KeyName          string
 	NoRecordSet      bool
-	Region           model.Region
+	Region           clusterapi.Region
 	S3URI            string
 }
 
 type UnmarshalledConfig struct {
-	controlplane.Cluster `yaml:",inline"`
-	Worker               `yaml:"worker,omitempty"`
-	model.UnknownKeys    `yaml:",inline"`
+	clusterapi.Cluster     `yaml:",inline"`
+	Worker                 `yaml:"worker,omitempty"`
+	clusterapi.UnknownKeys `yaml:",inline"`
 }
 
 type Worker struct {
-	APIEndpointName         string                     `yaml:"apiEndpointName,omitempty"`
-	NodePools               []*nodepool.ProvidedConfig `yaml:"nodePools,omitempty"`
-	model.UnknownKeys       `yaml:",inline"`
-	NodePoolRollingStrategy string `yaml:"nodePoolRollingStrategy,omitempty"`
+	APIEndpointName         string                       `yaml:"apiEndpointName,omitempty"`
+	NodePools               []*clusterapi.WorkerNodePool `yaml:"nodePools,omitempty"`
+	NodePoolRollingStrategy string                       `yaml:"nodePoolRollingStrategy,omitempty"`
+	clusterapi.UnknownKeys  `yaml:",inline"`
 }
 
 type Config struct {
-	*controlplane.Cluster
-	NodePools         []*nodepool.ProvidedConfig
-	model.UnknownKeys `yaml:",inline"`
-	Plugins           []*pluginmodel.Plugin
+	*cluster.Config
+	NodePools              []*cluster.NodePoolConfig
+	Plugins                []*clusterapi.Plugin
+	clusterapi.UnknownKeys `yaml:",inline"`
 }
 
 type unknownKeysSupport interface {
@@ -59,14 +56,14 @@ type unknownKeyValidation struct {
 
 func newDefaultUnmarshalledConfig() *UnmarshalledConfig {
 	return &UnmarshalledConfig{
-		Cluster: *controlplane.NewDefaultCluster(),
+		Cluster: *clusterapi.NewDefaultCluster(),
 		Worker: Worker{
-			NodePools: []*nodepool.ProvidedConfig{},
+			NodePools: []*clusterapi.WorkerNodePool{},
 		},
 	}
 }
 
-func ConfigFromBytes(data []byte, plugins []*pluginmodel.Plugin) (*Config, error) {
+func ConfigFromBytes(data []byte, plugins []*clusterapi.Plugin) (*Config, error) {
 	c := newDefaultUnmarshalledConfig()
 	if err := yaml.Unmarshal(data, c); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %v", err)
@@ -74,11 +71,19 @@ func ConfigFromBytes(data []byte, plugins []*pluginmodel.Plugin) (*Config, error
 	c.HyperkubeImage.Tag = c.K8sVer
 
 	cpCluster := &c.Cluster
-	if err := cpCluster.Load(); err != nil {
+	if err := cpCluster.Load(cluster.ControlPlaneStackName); err != nil {
 		return nil, err
 	}
 
-	cpConfig, err := cpCluster.Config(plugins)
+	extras := clusterextension.NewExtrasFromPlugins(plugins, c.PluginConfigs)
+
+	opts := clusterapi.ClusterOptions{
+		S3URI: c.S3URI,
+		// TODO
+		SkipWait: false,
+	}
+
+	cpConfig, err := cluster.Compile(cpCluster, opts, extras)
 	if err != nil {
 		return nil, err
 	}
@@ -103,6 +108,7 @@ func ConfigFromBytes(data []byte, plugins []*pluginmodel.Plugin) (*Config, error
 		}
 	}
 
+	nps := []*cluster.NodePoolConfig{}
 	for i, np := range nodePools {
 		if np == nil {
 			return nil, fmt.Errorf("Empty nodepool definition found at index %d", i)
@@ -129,7 +135,8 @@ func ConfigFromBytes(data []byte, plugins []*pluginmodel.Plugin) (*Config, error
 			}
 		}
 
-		if err := np.Load(cpConfig); err != nil {
+		npConf, err := cluster.NodePoolCompile(*np, cpConfig)
+		if err != nil {
 			return nil, fmt.Errorf("invalid node pool at index %d: %v", i, err)
 		}
 
@@ -146,9 +153,11 @@ func ConfigFromBytes(data []byte, plugins []*pluginmodel.Plugin) (*Config, error
 		}); err != nil {
 			return nil, err
 		}
+
+		nps = append(nps, npConf)
 	}
 
-	cfg := &Config{Cluster: cpCluster, NodePools: nodePools}
+	cfg := &Config{Config: cpConfig, NodePools: nps}
 
 	validations := []unknownKeyValidation{
 		{c, ""},
@@ -195,22 +204,22 @@ func failFastWhenUnknownKeysFound(vs []unknownKeyValidation) error {
 	return nil
 }
 
-func ConfigFromBytesWithStubs(data []byte, plugins []*pluginmodel.Plugin, encryptService credential.EncryptionService, cf cfnstack.CFInterrogator, ec cfnstack.EC2Interrogator) (*Config, error) {
-	c, err := ConfigFromBytes(data, plugins)
-	if err != nil {
-		return nil, err
-	}
-	c.ProvidedEncryptService = encryptService
-	c.ProvidedCFInterrogator = cf
-	c.ProvidedEC2Interrogator = ec
-
-	// Uses the same encrypt service for node pools for consistency
-	for _, p := range c.NodePools {
-		p.ProvidedEncryptService = encryptService
-	}
-
-	return c, nil
-}
+//func ConfigFromBytesWithStubs(data []byte, plugins []*clusterapi.Plugin, encryptService credential.KMSEncryptionService, cf cfnstack.CFInterrogator, ec cfnstack.EC2Interrogator) (*Config, error) {
+//	c, err := ConfigFromBytes(data, plugins)
+//	if err != nil {
+//		return nil, err
+//	}
+//	c.ProvidedEncryptService = encryptService
+//	c.ProvidedCFInterrogator = cf
+//	c.ProvidedEC2Interrogator = ec
+//
+//	// Uses the same encrypt service for node pools for consistency
+//	for _, p := range c.NodePools {
+//		p.ProvidedEncryptService = encryptService
+//	}
+//
+//	return c, nil
+//}
 
 func ConfigFromFile(configPath string) (*Config, error) {
 	data, err := ioutil.ReadFile(configPath)

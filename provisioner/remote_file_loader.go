@@ -2,7 +2,6 @@ package provisioner
 
 import (
 	"fmt"
-	"github.com/kubernetes-incubator/kube-aws/pki"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -11,7 +10,6 @@ import (
 )
 
 type RemoteFileLoader struct {
-	PKI *pki.PKI
 }
 
 func (loader *RemoteFileLoader) Load(f RemoteFileSpec) (*RemoteFile, error) {
@@ -23,26 +21,30 @@ func (loader *RemoteFileLoader) Load(f RemoteFileSpec) (*RemoteFile, error) {
 	cachePath := path
 
 	if path != "" {
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			if f.URL != "" {
-				fmt.Fprintf(os.Stderr, "downloading %s\n", f.URL)
-				err := download(f.URL, cachePath)
-				if err != nil {
-					return nil, fmt.Errorf("failed downloading %s: %v", f.URL, err)
-				}
-				mode := f.FileMode()
-				if mode != nil {
-					if err := os.Chmod(cachePath, *mode); err != nil {
-						return nil, fmt.Errorf("failed to chmod %s: %v", path, err)
+		if f.Type == "credential" {
+			path = path + ".enc"
+		} else {
+			if _, err := os.Stat(path); os.IsNotExist(err) {
+				if f.URL != "" {
+					fmt.Fprintf(os.Stderr, "downloading %s\n", f.URL)
+					err := download(f.URL, cachePath)
+					if err != nil {
+						return nil, fmt.Errorf("failed downloading %s: %v", f.URL, err)
 					}
+					mode := f.FileMode()
+					if mode != nil {
+						if err := os.Chmod(cachePath, *mode); err != nil {
+							return nil, fmt.Errorf("failed to chmod %s: %v", path, err)
+						}
+					}
+				} else if len(f.Content.String()) > 0 {
+					err := ioutil.WriteFile(cachePath, f.Content.bytes, *f.FileMode())
+					if err != nil {
+						return nil, fmt.Errorf("failed to write %s: %v", cachePath, err)
+					}
+				} else {
+					return nil, fmt.Errorf("%s not found", path)
 				}
-			} else if len(f.Content.String()) > 0 {
-				err := ioutil.WriteFile(cachePath, f.Content.bytes, *f.FileMode())
-				if err != nil {
-					return nil, fmt.Errorf("failed to write %s: %v", cachePath, err)
-				}
-			} else {
-				return nil, fmt.Errorf("%s not found", path)
 			}
 		}
 
@@ -50,6 +52,7 @@ func (loader *RemoteFileLoader) Load(f RemoteFileSpec) (*RemoteFile, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed loading %s: %v", path, err)
 		}
+
 		loaded.Content = NewBinaryContent(data)
 	} else {
 		loaded.Content = f.Content

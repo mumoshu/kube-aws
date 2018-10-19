@@ -17,15 +17,19 @@ type EncryptedFile struct {
 	fingerprint         string
 }
 
-type CachedEncryptor struct {
-	EncryptionService KMSEncryptionService
+type Store struct {
+	Encryptor Encryptor
 }
 
-type EncryptionService interface {
+type KMSEncryptionService interface {
 	Encrypt(*kms.EncryptInput) (*kms.EncryptOutput, error)
 }
 
-type KMSEncryptionService struct {
+type Encryptor interface {
+	EncryptedBytes(raw []byte) ([]byte, error)
+}
+
+type KMSEncryptor struct {
 	KmsKeyARN string
-	KmsSvc    EncryptionService
+	KmsSvc    KMSEncryptionService
 }

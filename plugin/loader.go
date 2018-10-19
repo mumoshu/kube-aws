@@ -6,7 +6,8 @@ import (
 	"path/filepath"
 
 	"github.com/go-yaml/yaml"
-	"github.com/kubernetes-incubator/kube-aws/plugin/pluginmodel"
+	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
+	"os"
 )
 
 type Loader struct {
@@ -16,22 +17,23 @@ func NewLoader() *Loader {
 	return &Loader{}
 }
 
-func (l Loader) Load() ([]*pluginmodel.Plugin, error) {
-	plugins := []*pluginmodel.Plugin{}
+func (l Loader) Load() ([]*clusterapi.Plugin, error) {
+	plugins := []*clusterapi.Plugin{}
 	fileInfos, _ := ioutil.ReadDir("plugins/")
 	for _, f := range fileInfos {
 		if f.IsDir() {
 			p, err := l.TryToLoadPluginFromDir(filepath.Join("plugins", f.Name()))
 			if err != nil {
-				return []*pluginmodel.Plugin{}, fmt.Errorf("Failed to load plugin from the directory %s: %v", f.Name(), err)
+				return []*clusterapi.Plugin{}, fmt.Errorf("Failed to load plugin from the directory %s: %v", f.Name(), err)
 			}
 			plugins = append(plugins, p)
+			fmt.Fprintf(os.Stderr, "loaded plugin %v\n", p)
 		}
 	}
 	return plugins, nil
 }
 
-func (l Loader) TryToLoadPluginFromDir(path string) (*pluginmodel.Plugin, error) {
+func (l Loader) TryToLoadPluginFromDir(path string) (*clusterapi.Plugin, error) {
 	p, err := PluginFromFile(filepath.Join(path, "plugin.yaml"))
 	if err != nil {
 		return nil, fmt.Errorf("Failed to load plugin from %s: %v", path, err)
@@ -39,7 +41,7 @@ func (l Loader) TryToLoadPluginFromDir(path string) (*pluginmodel.Plugin, error)
 	return p, nil
 }
 
-func PluginFromFile(path string) (*pluginmodel.Plugin, error) {
+func PluginFromFile(path string) (*clusterapi.Plugin, error) {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to read file %s: %v", path, err)
@@ -53,9 +55,10 @@ func PluginFromFile(path string) (*pluginmodel.Plugin, error) {
 	return c, nil
 }
 
-func PluginFromBytes(data []byte) (*pluginmodel.Plugin, error) {
-	p := &pluginmodel.Plugin{}
-	if err := yaml.Unmarshal(data, p); err != nil {
+func PluginFromBytes(data []byte) (*clusterapi.Plugin, error) {
+	fmt.Fprintf(os.Stderr, "plugin bytes %s\n", string(data))
+	p := &clusterapi.Plugin{}
+	if err := yaml.UnmarshalStrict(data, p); err != nil {
 		return nil, fmt.Errorf("Failed to parse as yaml: %v", err)
 	}
 	if err := p.Validate(); err != nil {
@@ -64,12 +67,12 @@ func PluginFromBytes(data []byte) (*pluginmodel.Plugin, error) {
 	return p, nil
 }
 
-func LoadAll() ([]*pluginmodel.Plugin, error) {
+func LoadAll() ([]*clusterapi.Plugin, error) {
 	loaders := []*Loader{
 		NewLoader(),
 	}
 
-	plugins := []*pluginmodel.Plugin{}
+	plugins := []*clusterapi.Plugin{}
 	for _, l := range loaders {
 		ps, err := l.Load()
 		if err != nil {

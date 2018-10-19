@@ -7,24 +7,22 @@ import (
 
 	"github.com/gobuffalo/packr"
 	"github.com/kubernetes-incubator/kube-aws/builtin"
-	controlplane "github.com/kubernetes-incubator/kube-aws/core/controlplane/config"
 	"github.com/kubernetes-incubator/kube-aws/filegen"
-	"github.com/kubernetes-incubator/kube-aws/plugin/pluginmodel"
+	"github.com/kubernetes-incubator/kube-aws/pkg/cluster"
+	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
+	"github.com/kubernetes-incubator/kube-aws/plugin/clusterextension"
 	"os"
 	"strings"
 )
 
 func RenderStack(configPath string) error {
 
-	cluster, err := controlplane.ClusterFromFile(configPath)
+	c, err := cluster.ClusterFromFile(configPath)
 	if err != nil {
 		return err
 	}
-	clusterConfig, err := cluster.Config([]*pluginmodel.Plugin{})
-	if err != nil {
-		return err
-	}
-	kubeconfig, err := generateKubeconfig(clusterConfig)
+	config, err := cluster.Compile(c, clusterapi.ClusterOptions{}, clusterextension.NewExtras())
+	kubeconfig, err := generateKubeconfig(config)
 	if err != nil {
 		return err
 	}
@@ -61,7 +59,7 @@ func RenderStack(configPath string) error {
 	return nil
 }
 
-func generateKubeconfig(clusterConfig *controlplane.Config) ([]byte, error) {
+func generateKubeconfig(clusterConfig *cluster.Config) ([]byte, error) {
 
 	tmpl, err := template.New("kubeconfig.yaml").Parse(builtin.String("kubeconfig.tmpl"))
 	if err != nil {

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kubernetes-incubator/kube-aws/core/controlplane/config"
 	"github.com/kubernetes-incubator/kube-aws/core/root"
+	"github.com/kubernetes-incubator/kube-aws/credential"
 	"github.com/kubernetes-incubator/kube-aws/logger"
 	"github.com/spf13/cobra"
 )
@@ -27,7 +27,7 @@ var (
 		SilenceUsage: true,
 	}
 
-	renderCredentialsOpts = config.CredentialsOptions{}
+	renderCredentialsOpts = credential.CredentialsOptions{}
 
 	cmdRenderStack = &cobra.Command{
 		Use:          "stack",
@@ -48,6 +48,8 @@ func init() {
 	cmdRenderCredentials.Flags().StringVar(&renderCredentialsOpts.CaKeyPath, "ca-key-path", "./credentials/ca-key.pem", "path to pem-encoded CA RSA key")
 	cmdRenderCredentials.Flags().StringVar(&renderCredentialsOpts.CaCertPath, "ca-cert-path", "./credentials/ca.pem", "path to pem-encoded CA x509 certificate")
 	cmdRenderCredentials.Flags().BoolVar(&renderCredentialsOpts.KIAM, "kiam", true, "generate TLS assets for kiam")
+	cmdRenderCredentials.Flags().BoolVar(&renderCredentialsOpts.AwsDebug, "aws-debug", false, "Log debug information from aws-sdk-go library")
+
 }
 
 func runCmdRender(_ *cobra.Command, args []string) error {
