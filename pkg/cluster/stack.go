@@ -110,33 +110,17 @@ func (c *Stack) buildAssets() (cfnstack.Assets, error) {
 func (s *Stack) addTarballedAssets(assetsBuilder *cfnstack.AssetsBuilderImpl) error {
 	t := time.Now()
 
-	role := "controller"
-
 	//s3Client := s3.New(s.Session)
 
-	entry := "/opt/bin/entrypoint"
-	files := []provisioner.RemoteFileSpec{
-		{
-			Path: entry,
-			Source: provisioner.Source{
-				Path: fmt.Sprintf("files/%s/opt/bin/entrypoint", role),
-			},
-			Content: provisioner.NewStringContent(`/usr/bin/env bash -e
-echo running the kube-aws entrypoint script
-`),
-			Permissions: 755,
-		},
-	}
-
-	files = append(files, s.archivedFiles...)
+	files := s.archivedFiles
 
 	ts := t.Format("20060102150405")
-	cacheDir := fmt.Sprintf("cache/%s/%s", ts, role)
+	cacheDir := fmt.Sprintf("cache/%s/%s", ts, s.StackName)
 	fmt.Fprintf(os.Stderr, "cacheDir= %v", cacheDir)
 
 	loader := &provisioner.RemoteFileLoader{}
 
-	prov := provisioner.NewTarballingProvisioner(files, entry, assetsBuilder.S3DirURI(), cacheDir)
+	prov := provisioner.NewTarballingProvisioner(s.StackName, files, "", assetsBuilder.S3DirURI(), cacheDir)
 
 	trans, err := prov.CreateTransferredFile(loader)
 	if err != nil {

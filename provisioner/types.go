@@ -91,9 +91,9 @@ type Provisioner struct {
 	// Name is the name of the provisioner
 	Name string `yaml:"name"`
 
-	// Entrypoint is an executable file that is executed on the node after the bundle is transferred.
-	// Entrypoint can either be one of bundled files that are transferred, or an already existing file on the remote node.
-	Entrypoint string `yaml:"entrypoint"`
+	// EntrypointLocalPath is an executable file that is executed on the node after the bundle is transferred.
+	// EntrypointLocalPath can either be one of bundled files that are transferred, or an already existing file on the remote node.
+	EntrypointLocalPath string `yaml:"entrypoint"`
 
 	// Bundle is the bundle the provisioner uses to provision nodes
 	Bundle []RemoteFileSpec `yaml:"bundle,inline"`
