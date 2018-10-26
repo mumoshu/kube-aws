@@ -25,11 +25,17 @@ spec:
         flags:
         - name: authentication-token-webhook-config-file
           value: /etc/kubernetes/heptio-authenticator-aws/kubeconfig.yaml
+        # TODO migrate to `mounts` like for kubelets
+        volumes:
+        - name: etc-kube-aws-iam-auth
+          path: /etc/kubernetes/heptio-authenticator-aws
     machine:
       roles:
         controller:
           kubelet:
-            kubeconfig: /etc/kubernetes/kubeconfig/aws-iam-auth.yaml
+            # temporarily disable to prevent the chicken-and-egg prob. the controller kubelet, when this aws-iam-auth kubeconfig is used,
+            # cannot start due to that it can't deploy aws-iam-authenticator daemonset pod, which requires running kubelet.
+            # kubeconfig: /etc/kubernetes/kubeconfig/aws-iam-auth.yaml
             mounts:
             - /opt/bin
           files:
@@ -51,6 +57,14 @@ spec:
             permissions: 0644
             source:
               path: ../../credentials/aws-iam-authenticator-server-key.pem
+            # This type-specification instructs kube-aws to transfer:
+            #   credentials/aws-iam-authenticator-server-key.pem.enc
+            # to:
+            #   /srv/kubernetes/aws-iam-authenticator/key.pem.enc
+            # The decrypt-assets systemd unit then kms-decrypt the enc file into:
+            #   /srv/kubernetes/aws-iam-authenticator/key.pem
+            # And chmod it to have the specified permissions `0644`
+            # See `/opt/bin/decrypt-assets` in `cloud-config-controller` for more details
             type: credential
           - path: /srv/kubernetes/aws-iam-authenticator/cert.pem
             permissions: 0644

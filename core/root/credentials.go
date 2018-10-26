@@ -14,7 +14,7 @@ import (
 
 func RenderCredentials(configPath string, renderCredentialsOpts credential.CredentialsOptions) error {
 	opts := NewOptions(false, false)
-	cluster, err := AggregatedClusterFromFile(configPath, opts, renderCredentialsOpts.AwsDebug)
+	cluster, err := CompileClusterFromFile(configPath, opts, renderCredentialsOpts.AwsDebug)
 	if err != nil {
 		return err
 	}

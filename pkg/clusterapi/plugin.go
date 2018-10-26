@@ -251,7 +251,8 @@ type ContainerVolumeMount string
 
 func (m ContainerVolumeMount) ToRktRunArgs() []string {
 	args := []string{}
-	volname := strings.Replace(strings.TrimSuffix(string(m), "/"), "/", "-", -1)
+	// Avoids invalid volname like "-opt-bin" for "/opt/bin" or "opt-bin-" for "opt/bin/". It should obviously be "opt-bin".
+	volname := strings.Replace(strings.TrimPrefix(strings.TrimSuffix(string(m), "/"), "/"), "/", "-", -1)
 	args = append(
 		args,
 		fmt.Sprintf("--mount volume=%s,target=%s", volname, string(m)),

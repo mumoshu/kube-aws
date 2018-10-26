@@ -9,7 +9,7 @@ func (f RemoteFileSpec) Load(loader *RemoteFileLoader) (*RemoteFile, error) {
 	return loader.Load(f)
 }
 
-func (f RemoteFileSpec) Name() string {
+func (f RemoteFileSpec) BaseName() string {
 	return filepath.Base(f.Source.Path)
 }
 

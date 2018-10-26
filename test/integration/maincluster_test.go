@@ -39,7 +39,7 @@ func TestMainClusterConfig(t *testing.T) {
 		t.FailNow()
 	}
 	s3Bucket := s3Loc.Bucket()
-	s3Dir := s3Loc.PathComponents()[0]
+	s3Dir := s3Loc.KeyComponents()[0]
 
 	firstAz := kubeAwsSettings.region + "c"
 
@@ -3669,7 +3669,7 @@ worker:
 				stackTemplateOptions.NetworkStackTemplateTmplFile = "../../core/network/config/templates/stack-template.json"
 				stackTemplateOptions.EtcdStackTemplateTmplFile = "../../core/etcd/config/templates/stack-template.json"
 
-				cluster, err := root.AggregatedClusterFromBytes(providedConfig, stackTemplateOptions, false)
+				cluster, err := root.InitClusterFromBytes(providedConfig, stackTemplateOptions, false)
 				if err != nil {
 					t.Errorf("failed to create cluster driver : %v", err)
 					t.FailNow()

@@ -143,23 +143,29 @@ type aggregatedCluster struct {
 	awsDebug bool
 }
 
-func AggregatedClusterFromFile(configPath string, opts options, awsDebug bool) (*aggregatedCluster, error) {
+func LoadClusterFromFile(configPath string, opts options, awsDebug bool) (*aggregatedCluster, error) {
 	cfg, err := config.ConfigFromFile(configPath)
 	if err != nil {
 		return nil, err
 	}
-	return AggregatedClusterFromBytes(cfg, opts, awsDebug)
+	return InitClusterFromBytes(cfg, opts, awsDebug)
 }
 
-func AggregatedClusterFromBytes(cfg *config.Config, opts options, awsDebug bool) (*aggregatedCluster, error) {
-	extras := clusterextension.NewExtrasFromPlugins(cfg.Plugins, cfg.PluginConfigs)
+func CompileClusterFromFile(configPath string, opts options, awsDebug bool) (*aggregatedCluster, error) {
+	cfg, err := config.ConfigFromFile(configPath)
+	if err != nil {
+		return nil, err
+	}
+	return InitClusterFromBytes(cfg, opts, awsDebug)
+}
 
+func InitClusterFromBytes(cfg *config.Config, opts options, awsDebug bool) (*aggregatedCluster, error) {
 	session, err := awsconn.NewSessionFromRegion(cfg.Region, awsDebug)
 	if err != nil {
 		return nil, fmt.Errorf("failed to establish aws session: %v", err)
 	}
 
-	return &aggregatedCluster{Cfg: cfg, opts: opts, awsDebug: awsDebug, extras: extras, session: session}, nil
+	return &aggregatedCluster{Cfg: cfg, opts: opts, awsDebug: awsDebug, extras: *cfg.Extras, session: session}, nil
 }
 
 func (cl *aggregatedCluster) ensureNestedStacksLoaded() error {
@@ -543,7 +549,10 @@ func (cl *aggregatedCluster) generateAssets(targets OperationTargets) (cfnstack.
 		strings.TrimSuffix(cl.s3URI(), "/"),
 		cl.controlPlane.ClusterName,
 	)
-	rootStackAssetsBuilder := cfnstack.NewAssetsBuilder(cl.stackName(), s3URI, cl.controlPlane.Region)
+	rootStackAssetsBuilder, err := cfnstack.NewAssetsBuilder(cl.stackName(), s3URI, cl.controlPlane.Region)
+	if err != nil {
+		return nil, err
+	}
 
 	var stackTemplate string
 	// Do not update the root stack but update either controlplane or worker stack(s) only when specified so

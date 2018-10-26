@@ -361,16 +361,20 @@ coreos:
         {{ end }}--cluster-domain=cluster.local \
         --cloud-provider=aws \
         --cert-dir=/etc/kubernetes/ssl \
-        {{- if and .Experimental.TLSBootstrap.Enabled .AssetsConfig.HasTLSBootstrapToken }}
+        {{- if and .Experimental.TLSBootstrap.Enabled .AssetsConfig.HasTLSBootstrapToken (not .Kubelet.Kubeconfig)}}
         --experimental-bootstrap-kubeconfig=/etc/kubernetes/kubeconfig/worker-bootstrap.yaml \
         {{- if .Kubelet.RotateCerts.Enabled }}
         --rotate-certificates \
         {{- end }}
         {{- else }}
+        {{- if .Kubelet.Kubeconfig}}
+        --kubeconfig={{ .Kubelet.Kubeconfig }} \
+        {{- else }}
+        --kubeconfig=/etc/kubernetes/kubeconfig/worker.yaml \
         --tls-cert-file=/etc/kubernetes/ssl/worker.pem \
         --tls-private-key-file=/etc/kubernetes/ssl/worker-key.pem \
         {{- end }}
-        --kubeconfig=/etc/kubernetes/kubeconfig/worker.yaml \
+        {{- end }}
         {{- if .FeatureGates.Enabled }}
         --feature-gates=\"{{.FeatureGates.String}}\" \
         {{- end }}
@@ -625,7 +629,7 @@ write_files:
 
   {{ if .CustomFiles -}}
   {{ range $i, $w := .CustomFiles -}}
-  - path: {{$w.Path}}
+  - path: {{$w.Path}}{{ if $w.Encrypted }}.enc{{end}}
     permissions: {{$w.PermissionsString}}
     encoding: gzip+base64
     content: {{$w.RenderGzippedBase64Content $}}
@@ -890,19 +894,17 @@ write_files:
            {{ range $i, $f := .CustomFiles -}}
            {{ if $f.Encrypted -}}
            encKey={{ $f.Path }}.enc
-           if [ ! -f $encKey ]; then
-               echo skipping non-existent file: $encKey 1>&2
-               continue
-             fi
+           if [ -f $encKey ]; then
              echo decrypting $encKey
              f=$(mktemp $encKey.XXXXXXXX)
              /usr/bin/aws \
-               --region {{.Region}} kms decrypt \
+               --region {{$.Region}} kms decrypt \
                --ciphertext-blob fileb://$encKey \
                --output text \
                --query Plaintext \
              | base64 -d > $f
              mv -f $f {{ $f.Path }}
+           fi
            {{ end -}}
            {{ end -}}
            {{ end -}}

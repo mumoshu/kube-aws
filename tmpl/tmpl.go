@@ -27,8 +27,7 @@ func New() *Context {
 
 func (c *Context) CreateFuncMap() template.FuncMap {
 	return template.FuncMap{
-		"readFile":      c.ReadFile,
-		"textToCfnExpr": TextToCfnExpr,
+		"readFile": c.ReadFile,
 
 		"indent": indent,
 	}

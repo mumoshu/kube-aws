@@ -11,5 +11,5 @@ func (keypair *KeyPair) CertInPEM() []byte {
 	if keypair.certPem == nil {
 		keypair.certPem = EncodeCertificatePEM(keypair.Cert)
 	}
-	return keypair.keyPem
+	return keypair.certPem
 }

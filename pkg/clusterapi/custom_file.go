@@ -15,11 +15,12 @@ type CustomFile struct {
 	Permissions uint   `yaml:"permissions"`
 	Content     string `yaml:"content,omitempty"`
 	Template    string `yaml:"template,omitempty"`
+	Type string `yaml:"type,omitempty`
 	UnknownKeys `yaml:",inline"`
 }
 
 func (c CustomFile) Encrypted() bool {
-	return strings.HasSuffix(c.Path, ".enc")
+	return c.Type == "credential"
 }
 
 func (c CustomFile) PermissionsString() string {
@@ -47,9 +48,16 @@ func (c CustomFile) RenderContent(ctx interface{}) (string, error) {
 }
 
 func (c CustomFile) RenderGzippedBase64Content(ctx interface{}) (string, error) {
-	content, err := c.RenderContent(ctx)
-	if err != nil {
-		return "", err
+	var content string
+	// Every credential is already encrypted by AWS KMS that its ciphertext is already a base64-encoded string.
+	if c.Type == "credential" {
+		content =  c.Content
+	} else {
+		var err error
+		content, err = c.RenderContent(ctx)
+		if err != nil {
+			return "", err
+		}
 	}
 	return gzipcompressor.StringToGzippedBase64String(content)
 }

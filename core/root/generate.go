@@ -10,7 +10,6 @@ import (
 	"github.com/kubernetes-incubator/kube-aws/filegen"
 	"github.com/kubernetes-incubator/kube-aws/pkg/cluster"
 	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
-	"github.com/kubernetes-incubator/kube-aws/plugin/clusterextension"
 	"os"
 	"strings"
 )
@@ -21,7 +20,7 @@ func RenderStack(configPath string) error {
 	if err != nil {
 		return err
 	}
-	config, err := cluster.Compile(c, clusterapi.ClusterOptions{}, clusterextension.NewExtras())
+	config, err := cluster.Compile(c, clusterapi.ClusterOptions{})
 	kubeconfig, err := generateKubeconfig(config)
 	if err != nil {
 		return err

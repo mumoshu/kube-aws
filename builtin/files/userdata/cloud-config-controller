@@ -242,6 +242,23 @@ coreos:
         ExecStart=/opt/bin/set-aws-environment
 {{end}}
 
+{{ if .CfnInitConfigSets }}
+    - name: cfn-init-files.service
+      enable: true
+      command: start
+      runtime: true
+      content: |
+        [Unit]
+        Description=Render necessary files with cfn-init
+        After=network-online.target
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=true
+        EnvironmentFile={{.StackNameEnvFileName}}
+        ExecStart=/opt/bin/cfn-init-files
+{{ end }}
+
     - name: docker.service
       drop-ins:
 {{if .Experimental.EphemeralImageStorage.Enabled}}
@@ -328,7 +345,7 @@ coreos:
         ExecStartPre=/bin/sh -ec "find /etc/kubernetes/manifests /srv/kubernetes/manifests  -maxdepth 1 -type f | xargs --no-run-if-empty sed -i 's|#ETCD_ENDPOINTS#|${ETCD_ENDPOINTS}|'"
         ExecStart=/bin/sh -c "exec /usr/lib/coreos/kubelet-wrapper \
         {{ if .Kubelet.Kubeconfig -}}
-        --kubeconfig={{ .Kubelet.Kubeconfig }}
+        --kubeconfig={{ .Kubelet.Kubeconfig }} \
         {{ else -}}
         --kubeconfig=/etc/kubernetes/kubeconfig/controller.yaml \
         {{ end -}}
@@ -559,7 +576,7 @@ write_files:
 
   {{ if .Controller.CustomFiles -}}
   {{ range $i, $w := .Controller.CustomFiles -}}
-  - path: {{$w.Path}}
+  - path: {{$w.Path}}{{ if $w.Encrypted }}.enc{{end}}
     permissions: {{$w.PermissionsString}}
     encoding: gzip+base64
     content: {{$w.RenderGzippedBase64Content $}}
@@ -676,6 +693,35 @@ write_files:
 
       rkt rm --uuid-file=/var/run/coreos/set-aws-environment.uuid || :
 {{end}}
+
+{{ if .CfnInitConfigSets }}
+  - path: /opt/bin/cfn-init-files
+    owner: root:root
+    permissions: 0700
+    content: |
+      #!/bin/bash -e
+
+      id=$(basename $0)
+
+      rkt run \
+        --volume=dns,kind=host,source=/etc/resolv.conf,readOnly=true \
+        --mount volume=dns,target=/etc/resolv.conf \
+        --volume=srv-kube-aws-plugins,kind=host,source=/srv/kube-aws/plugins,readOnly=false \
+        --mount volume=srv-kube-aws-plugins,target=/srv/kube-aws/plugins \
+        --uuid-file-save=/var/run/coreos/${id}.uuid \
+        --set-env={{.StackNameEnvVarName}}=${{.StackNameEnvVarName}} \
+        --net=host \
+        --trust-keys-from-https \
+        {{.AWSCliImage.Options}}{{.AWSCliImage.RktRepo}} --exec=/bin/bash -- \
+          -ec \
+          '
+          {{ range $k, $_ := .CfnInitConfigSets -}}
+           cfn-init -v -c "{{ $k }}" --region {{$.Region}} --resource {{$.Controller.LogicalName}} --stack "${{$.StackNameEnvVarName}}"
+          {{ end -}}
+          '
+
+      rkt rm --uuid-file=/var/run/coreos/${id}.uuid || :
+{{ end }}
 
   {{if .Experimental.AwsNodeLabels.Enabled -}}
   - path: /opt/bin/kube-node-label
@@ -2214,8 +2260,10 @@ write_files:
       #!/bin/bash -e
 
       rkt run \
-        --volume=kube,kind=host,source=/etc/kubernetes,readOnly=false \
-        --mount=volume=kube,target=/etc/kubernetes \
+        --volume=etc-kube,kind=host,source=/etc/kubernetes,readOnly=false \
+        --mount=volume=etc-kube,target=/etc/kubernetes \
+        --volume=srv-kube,kind=host,source=/srv/kubernetes,readOnly=false \
+        --mount=volume=srv-kube,target=/srv/kubernetes \
         --uuid-file-save=/var/run/coreos/decrypt-assets.uuid \
         --volume=dns,kind=host,source=/etc/resolv.conf,readOnly=true --mount volume=dns,target=/etc/resolv.conf \
         --net=host \
@@ -2252,15 +2300,12 @@ write_files:
            cat $authDir/tokens.csv.tmp >> $authDir/tokens.csv
            {{- end }}
            {{- end }}
-
+ 
            {{ if .Controller.CustomFiles -}}
            {{ range $i, $f := .Controller.CustomFiles -}}
            {{ if $f.Encrypted -}}
            encKey={{ $f.Path }}.enc
-           if [ ! -f $encKey ]; then
-               echo skipping non-existent file: $encKey 1>&2
-               continue
-             fi
+           if [ -f $encKey ]; then
              echo decrypting $encKey
              f=$(mktemp $encKey.XXXXXXXX)
              /usr/bin/aws \
@@ -2270,6 +2315,8 @@ write_files:
                --query Plaintext \
              | base64 -d > $f
              mv -f $f {{ $f.Path }}
+             chmod {{ $f.PermissionsString }} {{ $f.Path }}
+           fi
            {{ end -}}
            {{ end -}}
            {{ end -}}
@@ -4426,12 +4473,6 @@ write_files:
   - path: {{.KubernetesManifestPlugin.ManifestListFile.Path}}
     encoding: gzip+base64
     content: {{.KubernetesManifestPlugin.ManifestListFile.Content.ToGzip.ToBase64}}
-
-{{ range $f := .KubernetesManifestPlugin.Manifests }}
-  - path: {{$f.Path}}
-    encoding: gzip+base64
-    content: {{$f.Content.ToGzip.ToBase64}}
-{{ end }}
 
   - path: {{.HelmReleasePlugin.ReleaseListFile.Path}}
     encoding: gzip+base64

@@ -42,6 +42,8 @@ func newStack(stackName string, conf *Config, opts clusterapi.StackTemplateOptio
 	return stack, nil
 }
 
+// NewControlPlaneStack reads the specified cluster spec along with all the referenced files into memory.
+// Any configuration error like a reference to a missing file results in kube-aws existing with an error.
 func NewControlPlaneStack(conf *Config, opts clusterapi.StackTemplateOptions, extras clusterextension.ClusterExtension, assetsConfig *credential.CompactAssets) (*Stack, error) {
 	return newStack(
 		ControlPlaneStackName,
@@ -65,6 +67,27 @@ func NewControlPlaneStack(conf *Config, opts clusterapi.StackTemplateOptions, ex
 			if err != nil {
 				return fmt.Errorf("failed to load controller node extras from plugins: %v", err)
 			}
+
+			if len(conf.Kubelet.Kubeconfig) == 0 {
+				conf.Kubelet.Kubeconfig = extraController.Kubeconfig
+			}
+			conf.Kubelet.Mounts = append(conf.Kubelet.Mounts, extraController.KubeletVolumeMounts...)
+			conf.APIServerFlags = append(conf.APIServerFlags, extraController.APIServerFlags...)
+			conf.APIServerVolumes = append(conf.APIServerVolumes, extraController.APIServerVolumes...)
+			conf.Controller.CustomSystemdUnits = append(conf.Controller.CustomSystemdUnits, extraController.SystemdUnits...)
+			conf.Controller.CustomFiles = append(conf.Controller.CustomFiles, extraController.Files...)
+			conf.Controller.IAMConfig.Policy.Statements = append(conf.Controller.IAMConfig.Policy.Statements, extraController.IAMPolicyStatements...)
+			conf.KubeAWSVersion = VERSION
+			for k, v := range extraController.NodeLabels {
+				conf.Controller.NodeLabels[k] = v
+			}
+			conf.HelmReleaseFilesets = extraController.HelmReleaseFilesets
+			conf.KubernetesManifestFiles = extraController.KubernetesManifestFiles
+
+			if len(conf.StackTags) == 0 {
+				conf.StackTags = make(map[string]string, 1)
+			}
+			conf.StackTags["kube-aws:version"] = VERSION
 
 			stack.archivedFiles = extraController.ArchivedFiles
 			stack.CfnInitConfigSets = extraController.CfnInitConfigSets
@@ -174,7 +197,7 @@ func NewWorkerStack(conf *Config, npconf *NodePoolConfig, opts clusterapi.StackT
 
 			extraWorker, err := extras.Worker(conf)
 			if err != nil {
-				return fmt.Errorf("failed to load controller node extras from plugins: %v", err)
+				return fmt.Errorf("failed to load worker node extras from plugins: %v", err)
 			}
 			if len(npconf.Kubelet.Kubeconfig) == 0 {
 				npconf.Kubelet.Kubeconfig = extraWorker.Kubeconfig

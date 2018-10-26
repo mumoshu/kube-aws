@@ -8,8 +8,8 @@ import (
 	"strings"
 )
 
-func TextToCfnExprTokens(src string) []string {
-	tokens := []string{}
+func TextToCfnExprTokens(src string) []json.RawMessage {
+	tokens := []json.RawMessage{}
 	i := 0
 	strStart := -1
 
@@ -19,7 +19,7 @@ func TextToCfnExprTokens(src string) []string {
 			if err != nil {
 				panic(err)
 			}
-			tokens = append(tokens, string(bt))
+			tokens = append(tokens, json.RawMessage(bt))
 			strStart = -1
 		}
 	}
@@ -46,7 +46,7 @@ func TextToCfnExprTokens(src string) []string {
 				break
 			}
 		}
-		tokens = append(tokens, src[i:i+int(j)])
+		tokens = append(tokens, json.RawMessage(src[i:i+int(j)]))
 		i = i + int(j)
 	}
 
@@ -75,7 +75,7 @@ Loop:
 	return tokens
 }
 
-func TextToCfnExpr(src string) string {
-	tokens := TextToCfnExprTokens(src)
-	return fmt.Sprintf(`{"Fn::Join": ["", [%s]]}`, strings.Join(tokens, ", "))
-}
+//func TextToCfnExpr(src string) string {
+//	tokens := TextToCfnExprTokens(src)
+//	return fmt.Sprintf(`{"Fn::Join": ["", [%s]]}`, strings.Join(tokens, ", "))
+//}

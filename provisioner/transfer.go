@@ -13,7 +13,7 @@ type S3ObjectPutter interface {
 }
 
 func (t TransferredFile) S3URI() string {
-	return fmt.Sprintf("%s/%s", t.s3DirURI, t.Name())
+	return fmt.Sprintf("%s/%s", t.s3DirURI, t.BaseName())
 }
 
 func (t TransferredFile) ReceiveCommand() string {
@@ -34,10 +34,10 @@ func (t TransferredFile) Send(client S3ObjectPutter) error {
 	bucket := splits[0]
 	prefix := splits[1]
 
-	fmt.Fprintf(os.Stderr, "putting %s onto %s with prefix %s\n", t.Name(), bucket, prefix)
+	fmt.Fprintf(os.Stderr, "putting %s onto %s with prefix %s\n", t.BaseName(), bucket, prefix)
 	_, err = client.PutObject(&s3.PutObjectInput{
 		Bucket: aws.String(bucket),
-		Key:    aws.String(prefix + "/" + t.Name()),
+		Key:    aws.String(prefix + "/" + t.BaseName()),
 		Body:   opened,
 	})
 	if err != nil {

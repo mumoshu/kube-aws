@@ -68,6 +68,9 @@ func (p *Stack) RenderAddWorkerUserdata(opts clusterapi.StackTemplateOptions) er
 }
 
 func (c *Stack) Assets() cfnstack.Assets {
+	if c.assets == nil {
+		panic(fmt.Sprintf("[bug] encountered unexpected nil assets for stack %s", c.StackName))
+	}
 	return c.assets
 }
 
@@ -77,7 +80,10 @@ func (c *Stack) buildAssets() (cfnstack.Assets, error) {
 
 	var err error
 
-	assetsBuilder := cfnstack.NewAssetsBuilder(c.StackName, c.ClusterExportedStacksS3URI(), c.Region)
+	assetsBuilder, err := cfnstack.NewAssetsBuilder(c.StackName, c.ClusterExportedStacksS3URI(), c.Region)
+	if err != nil {
+		return nil, err
+	}
 
 	if err := c.addTarballedAssets(assetsBuilder); err != nil {
 		return nil, fmt.Errorf("failed to create node provisioner: %v", err)
@@ -91,6 +97,9 @@ func (c *Stack) buildAssets() (cfnstack.Assets, error) {
 		}
 	}
 
+	logger.Debugf("Buildings assets before templating %s stack template...", c.StackName)
+	c.assets = assetsBuilder.Build()
+
 	stackTemplate, err := c.RenderStackTemplateAsString()
 	if err != nil {
 		return nil, fmt.Errorf("failed to render %s template: %v", c.StackName, err)
@@ -98,10 +107,6 @@ func (c *Stack) buildAssets() (cfnstack.Assets, error) {
 
 	logger.Debugf("Calling assets.Add on %s", STACK_TEMPLATE_FILENAME)
 	assetsBuilder.Add(STACK_TEMPLATE_FILENAME, stackTemplate)
-
-	// TODO
-	// logger.Debugf("Calling assets.Add on %s", prov.File)
-	// assets.Add(prov.File, prov.Content)
 
 	logger.Debugf("Calling assets.Build for %s...", c.StackName)
 	return assetsBuilder.Build(), nil
@@ -131,7 +136,7 @@ func (s *Stack) addTarballedAssets(assetsBuilder *cfnstack.AssetsBuilderImpl) er
 		return err
 	}
 
-	assetsBuilder.Add(prov.Name, loaded.Content.String())
+	assetsBuilder.Add(prov.GetTransferredFile().BaseName(), loaded.Content.String())
 
 	s.NodeProvisioner = prov
 

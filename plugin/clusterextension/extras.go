@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"encoding/json"
+
 	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 	"github.com/kubernetes-incubator/kube-aws/plugin/plugincontents"
 	"github.com/kubernetes-incubator/kube-aws/plugin/pluginutil"
@@ -11,6 +12,8 @@ import (
 	"github.com/kubernetes-incubator/kube-aws/tmpl"
 	//"os"
 	"path/filepath"
+
+	"github.com/kubernetes-incubator/kube-aws/logger"
 )
 
 type ClusterExtension struct {
@@ -141,10 +144,21 @@ func regularOrConfigSetFile(f provisioner.RemoteFileSpec, render *plugincontents
 		return nil, nil, err
 	}
 
+	// Disable templates for files that are known to be static e.g. binaries and credentials
+	// Type "binary" is not considered here because binaries are too huge to be handled here.
+	if f.Type == "credential" {
+		return &goRendered, nil, nil
+	}
+
 	tokens := tmpl.TextToCfnExprTokens(goRendered)
 
 	if len(tokens) == 1 {
-		return &tokens[0], nil, nil
+		var out string
+		if err := json.Unmarshal([]byte(tokens[0]), &out); err != nil {
+			logger.Errorf("failed unmarshalling %s from json: %v", tokens[0], err)
+			return nil, nil, err
+		}
+		return &out, nil, nil
 	}
 
 	return nil, map[string]interface{}{"Fn::Join": []interface{}{"", tokens}}, nil
@@ -197,6 +211,7 @@ func (e ClusterExtension) Worker(config interface{}) (*worker, error) {
 						Path:        d.Path,
 						Permissions: perm,
 						Content:     *s,
+						Type:        d.Type,
 					}
 					files = append(files, f)
 				} else {
@@ -205,7 +220,7 @@ func (e ClusterExtension) Worker(config interface{}) (*worker, error) {
 					}
 				}
 			}
-			configsets[p.Name] = map[string]interface{}{
+			configsets[p.Name] = map[string]map[string]interface{}{
 				"files": configsetFiles,
 			}
 
@@ -219,8 +234,8 @@ func (e ClusterExtension) Worker(config interface{}) (*worker, error) {
 				featureGates[k] = v
 			}
 
-			if p.Spec.Cluster.Machine.Roles.Controller.Kubelet.Kubeconfig != "" {
-				kubeconfig = p.Spec.Cluster.Machine.Roles.Controller.Kubelet.Kubeconfig
+			if p.Spec.Cluster.Machine.Roles.Worker.Kubelet.Kubeconfig != "" {
+				kubeconfig = p.Spec.Cluster.Machine.Roles.Worker.Kubelet.Kubeconfig
 			}
 
 			if len(p.Spec.Cluster.Machine.Roles.Controller.Kubelet.Mounts) > 0 {
@@ -301,6 +316,7 @@ func (e ClusterExtension) Controller(clusterConfig interface{}) (*controller, er
 				systemdUnits = append(systemdUnits, u)
 			}
 
+			configsetFiles := map[string]interface{}{}
 			for _, d := range p.Spec.Cluster.Machine.Roles.Controller.Files {
 				if d.IsBinary() {
 					archivedFiles = append(archivedFiles, d)
@@ -329,25 +345,16 @@ func (e ClusterExtension) Controller(clusterConfig interface{}) (*controller, er
 				perm := d.Permissions
 
 				if s != nil {
-					var path string
-					if d.Type == "credential" {
-						path = d.Path + ".enc"
-					} else {
-						path = d.Path
-					}
 					f := clusterapi.CustomFile{
-						Path:        path,
+						Path:        d.Path,
 						Permissions: perm,
 						Content:     *s,
+						Type:        d.Type,
 					}
 					files = append(files, f)
 				} else {
-					configsets[p.Name] = map[string]interface{}{
-						"files": map[string]interface{}{
-							d.Path: map[string]interface{}{
-								"content": cfg,
-							},
-						},
+					configsetFiles[d.Path] = map[string]interface{}{
+						"content": cfg,
 					}
 				}
 			}
@@ -367,7 +374,7 @@ func (e ClusterExtension) Controller(clusterConfig interface{}) (*controller, er
 			}
 
 			for _, m := range p.Spec.Cluster.Kubernetes.Manifests {
-				rendered, err := render.File(m.RemoteFileSpec)
+				rendered, ma, err := regularOrConfigSetFile(m.RemoteFileSpec, render)
 				if err != nil {
 					panic(err)
 				}
@@ -380,12 +387,26 @@ func (e ClusterExtension) Controller(clusterConfig interface{}) (*controller, er
 				} else {
 					name = m.Name
 				}
-				f := provisioner.NewRemoteFileAtPath(
-					filepath.Join("/srv/kube-aws/plugins", p.Metadata.Name, name),
-					[]byte(rendered),
-				)
+				remotePath := filepath.Join("/srv/kube-aws/plugins", p.Metadata.Name, name)
+				if rendered != nil {
+					f := clusterapi.CustomFile{
+						Path:        remotePath,
+						Permissions: 0644,
+						Content:     *rendered,
+					}
+					files = append(files, f)
+					manifests = append(manifests, provisioner.NewRemoteFileAtPath(f.Path, []byte(f.Content)))
+				} else {
+					configsetFiles[remotePath] = map[string]interface{}{
+						"content": ma,
+					}
+					manifests = append(manifests, provisioner.NewRemoteFileAtPath(remotePath, []byte{}))
+				}
+			}
 
-				manifests = append(manifests, f)
+			// Merge all the configset files produced from `files` and `manifessts`
+			configsets[p.Name] = map[string]map[string]interface{}{
+				"files": configsetFiles,
 			}
 
 			for _, releaseConfig := range p.Spec.Cluster.Helm.Releases {
@@ -424,16 +445,16 @@ func (e ClusterExtension) Controller(clusterConfig interface{}) (*controller, er
 	}
 
 	return &controller{
-		ArchivedFiles:       archivedFiles,
-		APIServerFlags:      apiServerFlags,
-		APIServerVolumes:    apiServerVolumes,
-		Files:               files,
-		SystemdUnits:        systemdUnits,
-		IAMPolicyStatements: iamStatements,
-		NodeLabels:          nodeLabels,
-		KubeletVolumeMounts: kubeletMounts,
-		Kubeconfig:          kubeconfig,
-
+		ArchivedFiles:           archivedFiles,
+		APIServerFlags:          apiServerFlags,
+		APIServerVolumes:        apiServerVolumes,
+		Files:                   files,
+		SystemdUnits:            systemdUnits,
+		IAMPolicyStatements:     iamStatements,
+		NodeLabels:              nodeLabels,
+		KubeletVolumeMounts:     kubeletMounts,
+		Kubeconfig:              kubeconfig,
+		CfnInitConfigSets:       configsets,
 		KubernetesManifestFiles: manifests,
 		HelmReleaseFilesets:     releaseFilesets,
 	}, nil

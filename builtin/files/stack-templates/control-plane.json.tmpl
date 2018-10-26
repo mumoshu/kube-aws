@@ -273,7 +273,7 @@
                   "Action": [
                   "s3:GetObject"
                   ],
-                  "Resource": "arn:{{.Region.Partition}}:s3:::{{ .UserDataController.Parts.s3.Asset.S3Prefix }}*"
+                  "Resource": "arn:{{.Region.Partition}}:s3:::{{ .Assets.S3Prefix }}*"
 		            },
                 {{ end }}
                 {{if .WaitSignal.Enabled}}

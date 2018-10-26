@@ -24,6 +24,9 @@ spec:
         node-role.kubernetes.io/master: ""
       tolerations:
       - effect: NoSchedule
+        key: node.alpha.kubernetes.io/role
+        value: master
+      - effect: NoSchedule
         key: node-role.kubernetes.io/master
       - key: CriticalAddonsOnly
         operator: Exists

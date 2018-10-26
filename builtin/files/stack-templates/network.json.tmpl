@@ -882,7 +882,7 @@
                   "Action": [
                     "s3:GetObject"
                   ],
-                  "Resource": "arn:{{.Region.Partition}}:s3:::{{ $nodepool.UserDataWorker.Parts.s3.Asset.S3Prefix }}*"
+                  "Resource": "arn:{{.Region.Partition}}:s3:::{{ $nodepool.Assets.S3Prefix }}*"
                 },
                 {{- end }}
                 {{if .CloudWatchLogging.Enabled}}

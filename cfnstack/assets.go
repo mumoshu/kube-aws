@@ -13,6 +13,7 @@ type Assets interface {
 	Merge(Assets) Assets
 	AsMap() map[clusterapi.AssetID]clusterapi.Asset
 	FindAssetByStackAndFileName(string, string) (clusterapi.Asset, error)
+	S3Prefix() string
 }
 
 func EmptyAssets() assetsImpl {
@@ -22,6 +23,7 @@ func EmptyAssets() assetsImpl {
 }
 
 type assetsImpl struct {
+	s3Prefix   string
 	underlying map[clusterapi.AssetID]clusterapi.Asset
 }
 
@@ -36,8 +38,13 @@ func (a assetsImpl) Merge(other Assets) Assets {
 	}
 
 	return assetsImpl{
+		s3Prefix:   other.S3Prefix(),
 		underlying: merged,
 	}
+}
+
+func (a assetsImpl) S3Prefix() string {
+	return a.s3Prefix
 }
 
 func (a assetsImpl) AsMap() map[clusterapi.AssetID]clusterapi.Asset {
@@ -107,41 +114,41 @@ func (b *AssetsBuilderImpl) AddUserDataPart(userdata clusterapi.UserData, part s
 
 func (b *AssetsBuilderImpl) Build() Assets {
 	return assetsImpl{
+		s3Prefix:   b.S3Prefix(),
 		underlying: b.assets,
 	}
 }
 
-func NewAssetsBuilder(stackName string, s3URI string, region clusterapi.Region) *AssetsBuilderImpl {
+func NewAssetsBuilder(stackName string, s3URI string, region clusterapi.Region) (*AssetsBuilderImpl, error) {
+	uri, err := S3URIFromString(s3URI)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed creating s3 assets locator for stack %s: %v", stackName, err)
+	}
+
 	return &AssetsBuilderImpl{
 		AssetLocationProvider: AssetLocationProvider{
-			s3URI:     s3URI,
+			s3URI:     uri,
 			region:    region,
 			stackName: stackName,
 		},
 		assets: map[clusterapi.AssetID]clusterapi.Asset{},
-	}
+	}, nil
 }
 
 type AssetLocationProvider struct {
-	s3URI     string
+	s3URI     S3URI
 	region    clusterapi.Region
 	stackName string
 }
 
 func (p AssetLocationProvider) S3DirURI() string {
-	return fmt.Sprintf("%s/%s", p.s3URI, p.stackName)
+	return fmt.Sprintf("%s/%s", p.s3URI.String(), p.stackName)
 }
 
 func (p AssetLocationProvider) Locate(filename string) (*clusterapi.AssetLocation, error) {
 	if filename == "" {
 		return nil, fmt.Errorf("Can't produce S3 location for empty filename")
-	}
-	s3URI := p.s3URI
-
-	uri, err := S3URIFromString(s3URI)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to determine location for %s: %v", filename, err)
 	}
 
 	relativePathComponents := []string{
@@ -151,7 +158,7 @@ func (p AssetLocationProvider) Locate(filename string) (*clusterapi.AssetLocatio
 
 	// key = s3uri's path component + stack name + filename
 	key := strings.Join(
-		append(uri.PathComponents(), relativePathComponents...),
+		append(p.s3URI.KeyComponents(), relativePathComponents...),
 		"/",
 	)
 
@@ -160,8 +167,16 @@ func (p AssetLocationProvider) Locate(filename string) (*clusterapi.AssetLocatio
 	return &clusterapi.AssetLocation{
 		ID:     id,
 		Key:    key,
-		Bucket: uri.Bucket(),
+		Bucket: p.s3URI.Bucket(),
 		Path:   filepath.Join(relativePathComponents...),
 		Region: p.region,
 	}, nil
+}
+
+// S3Prefix returns BUCKET + / + S3 OBJECT KEY PREFIX whereas the prefix is that of all the assets locatable by this provider
+// For example, in case this provider is configured to locate assets for stack MYSTACK in S3 bucket MYBUCKET
+// due to that you've passed an S3 URI of `s3://MYBUCKET/MY/PREFIX` and the stack name of MYSTACK,
+// this func returns "MYBUCKET/MY/PREFIX/MYSTACK".
+func (p AssetLocationProvider) S3Prefix() string {
+	return fmt.Sprintf("%s/%s", p.s3URI.BucketAndKey(), p.stackName)
 }

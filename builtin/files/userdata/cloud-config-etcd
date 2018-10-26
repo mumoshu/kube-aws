@@ -531,7 +531,7 @@ write_files:
       ChallengeResponseAuthentication no
 {{- if .Etcd.CustomFiles}}
   {{- range $w := .Etcd.CustomFiles}}
-  - path: {{$w.Path}}
+  - path: {{$w.Path}}{{ if $w.Encrypted }}.enc{{end}}
     permissions: {{$w.PermissionsString}}
     encoding: gzip+base64
     content: {{$w.RenderGzippedBase64Content $}}

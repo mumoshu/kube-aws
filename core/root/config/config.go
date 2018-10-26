@@ -35,6 +35,8 @@ type Config struct {
 	NodePools              []*cluster.NodePoolConfig
 	Plugins                []*clusterapi.Plugin
 	clusterapi.UnknownKeys `yaml:",inline"`
+
+	Extras *clusterextension.ClusterExtension
 }
 
 type unknownKeysSupport interface {
@@ -52,12 +54,21 @@ func newDefaultUnmarshalledConfig() *UnmarshalledConfig {
 	}
 }
 
-func ConfigFromBytes(data []byte, plugins []*clusterapi.Plugin) (*Config, error) {
+func unmarshalConfig(data []byte) (*UnmarshalledConfig, error) {
 	c := newDefaultUnmarshalledConfig()
 	if err := yaml.Unmarshal(data, c); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %v", err)
 	}
 	c.HyperkubeImage.Tag = c.K8sVer
+
+	return c, nil
+}
+
+func ConfigFromBytes(data []byte, plugins []*clusterapi.Plugin) (*Config, error) {
+	c, err := unmarshalConfig(data)
+	if err != nil {
+		return nil, err
+	}
 
 	cpCluster := &c.Cluster
 	if err := cpCluster.Load(cluster.ControlPlaneStackName); err != nil {
@@ -72,7 +83,7 @@ func ConfigFromBytes(data []byte, plugins []*clusterapi.Plugin) (*Config, error)
 		SkipWait: false,
 	}
 
-	cpConfig, err := cluster.Compile(cpCluster, opts, extras)
+	cpConfig, err := cluster.Compile(cpCluster, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -177,6 +188,7 @@ func ConfigFromBytes(data []byte, plugins []*clusterapi.Plugin) (*Config, error)
 	}
 
 	cfg.Plugins = plugins
+	cfg.Extras = &extras
 
 	return cfg, nil
 }
@@ -220,7 +232,7 @@ func ConfigFromFile(configPath string) (*Config, error) {
 
 	c, err := ConfigFromBytes(data, plugins)
 	if err != nil {
-		return nil, fmt.Errorf("file %s: %v", configPath, err)
+		return nil, fmt.Errorf("failed loading %s: %v", configPath, err)
 	}
 
 	return c, nil
