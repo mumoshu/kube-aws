@@ -52,3 +52,8 @@ relnote:
 	go get golang.org/x/net/context
 	go get github.com/google/go-github/github
 	go run hack/relnote.go
+
+.PHONY: merged-branches
+merged-branches:
+	@git branch --merged | egrep -v "(^\*|master|v0.)"
+	@bash -c "(echo 'pipe this into \`| xargs git branch -d\`' to delete) 1>&2"
