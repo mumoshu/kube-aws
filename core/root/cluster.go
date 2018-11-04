@@ -258,16 +258,7 @@ func (cl *aggregatedCluster) ensureNestedStacksLoaded() error {
 }
 
 func (cl *aggregatedCluster) NewAssetsOnDisk(dir string, opts credential.CredentialsOptions) (*credential.RawAssetsOnDisk, error) {
-	r := &credential.Renderer{
-		TLSCADurationDays:         cl.Cfg.TLSCADurationDays,
-		TLSCertDurationDays:       cl.Cfg.TLSCertDurationDays,
-		TLSBootstrapEnabled:       cl.Cfg.Experimental.TLSBootstrap.Enabled,
-		ManageCertificates:        cl.Cfg.ManageCertificates,
-		Region:                    cl.Cfg.Region.String(),
-		APIServerExternalDNSNames: cl.Cfg.ExternalDNSNames(),
-		EtcdNodeDNSNames:          cl.Cfg.EtcdCluster().DNSNames(),
-		ServiceCIDR:               cl.Cfg.ServiceCIDR,
-	}
+	r := cluster.NewCredentialRenderer(cl.Cfg.Cluster)
 	a, err := r.NewAssetsOnDisk(dir, opts)
 	if err != nil {
 		return nil, err

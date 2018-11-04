@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-yaml/yaml"
 	"github.com/kubernetes-incubator/kube-aws/netutil"
-	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 )
 
 const externalDNSNameConfig = `externalDNSName: test.staging.core-os.net
@@ -233,6 +233,16 @@ apiEndpoints:
     securityGroupIds: []
     apiAccessAllowedSourceCIDRs: []
 `,
+}
+
+// ClusterFromBytes Necessary for unit tests, which store configs as hardcoded strings
+func ClusterFromBytes(data []byte) (*Cluster, error) {
+	c := NewDefaultCluster()
+
+	if err := yaml.Unmarshal(data, c); err != nil {
+		return nil, fmt.Errorf("failed to parse cluster: %v", err)
+	}
+	return c, nil
 }
 
 func TestNetworkValidation(t *testing.T) {
@@ -558,7 +568,7 @@ func TestMultipleSubnets(t *testing.T) {
 
 	validConfigs := []struct {
 		conf    string
-		subnets clusterapi.Subnets
+		subnets Subnets
 	}{
 		{
 			conf: `
@@ -570,7 +580,7 @@ subnets:
   - availabilityZone: ap-northeast-1c
     instanceCIDR: 10.4.4.0/24
 `,
-			subnets: clusterapi.Subnets{
+			subnets: Subnets{
 				{
 					InstanceCIDR:     "10.4.3.0/24",
 					AvailabilityZone: "ap-northeast-1a",
@@ -590,7 +600,7 @@ vpcCIDR: 10.4.3.0/16
 availabilityZone: ap-northeast-1a
 instanceCIDR: 10.4.3.0/24
 `,
-			subnets: clusterapi.Subnets{
+			subnets: Subnets{
 				{
 					AvailabilityZone: "ap-northeast-1a",
 					InstanceCIDR:     "10.4.3.0/24",
@@ -606,7 +616,7 @@ availabilityZone: ap-northeast-1a
 instanceCIDR: 10.4.3.0/24
 subnets: []
 `,
-			subnets: clusterapi.Subnets{
+			subnets: Subnets{
 				{
 					AvailabilityZone: "ap-northeast-1a",
 					InstanceCIDR:     "10.4.3.0/24",
@@ -620,7 +630,7 @@ subnets: []
 availabilityZone: "ap-northeast-1a"
 subnets: []
 `,
-			subnets: clusterapi.Subnets{
+			subnets: Subnets{
 				{
 					AvailabilityZone: "ap-northeast-1a",
 					InstanceCIDR:     "10.0.0.0/24",
@@ -633,7 +643,7 @@ subnets: []
 # Missing subnets field fall-backs to the single subnet with the default az/cidr.
 availabilityZone: "ap-northeast-1a"
 `,
-			subnets: clusterapi.Subnets{
+			subnets: Subnets{
 				{
 					AvailabilityZone: "ap-northeast-1a",
 					InstanceCIDR:     "10.0.0.0/24",
@@ -925,15 +935,15 @@ func TestNodeDrainerConfig(t *testing.T) {
 
 	validConfigs := []struct {
 		conf        string
-		nodeDrainer clusterapi.NodeDrainer
+		nodeDrainer NodeDrainer
 	}{
 		{
 			conf: `
 `,
-			nodeDrainer: clusterapi.NodeDrainer{
+			nodeDrainer: NodeDrainer{
 				Enabled:      false,
 				DrainTimeout: 5,
-				IAMRole:      clusterapi.IAMRole{},
+				IAMRole:      IAMRole{},
 			},
 		},
 		{
@@ -944,10 +954,10 @@ experimental:
     iamRole:
       arn: arn:aws:iam::0123456789012:role/asg-list-role
 `,
-			nodeDrainer: clusterapi.NodeDrainer{
+			nodeDrainer: NodeDrainer{
 				Enabled:      true,
 				DrainTimeout: 5,
-				IAMRole:      clusterapi.IAMRole{ARN: clusterapi.ARN{Arn: "arn:aws:iam::0123456789012:role/asg-list-role"}},
+				IAMRole:      IAMRole{ARN: ARN{Arn: "arn:aws:iam::0123456789012:role/asg-list-role"}},
 			},
 		},
 		{
@@ -957,7 +967,7 @@ experimental:
     enabled: true
     drainTimeout: 3
 `,
-			nodeDrainer: clusterapi.NodeDrainer{
+			nodeDrainer: NodeDrainer{
 				Enabled:      true,
 				DrainTimeout: 3,
 			},
@@ -1402,14 +1412,9 @@ releaseChannel: %s
 
 	for _, channel := range validChannels {
 		confBody := singleAzConfigYaml + conf(channel)
-		cluster, err := ClusterFromBytes([]byte(confBody))
+		_, err := ClusterFromBytes([]byte(confBody))
 		if err != nil {
 			t.Errorf("failed to parse config %s: %v", confBody, err)
-		}
-
-		_, err2 := cluster.Config()
-		if err2 != nil {
-			t.Errorf("failed to generate config for %s: %v", channel, err2)
 		}
 	}
 }
@@ -1443,9 +1448,9 @@ func TestValidateExistingVPC(t *testing.T) {
 	cluster := NewDefaultCluster()
 
 	cluster.VPCCIDR = "10.0.0.0/16"
-	cluster.Subnets = clusterapi.Subnets{
-		clusterapi.NewPublicSubnet("ap-northeast-1a", "10.0.1.0/24"),
-		clusterapi.NewPublicSubnet("ap-northeast-1a", "10.0.2.0/24"),
+	cluster.Subnets = Subnets{
+		NewPublicSubnet("ap-northeast-1a", "10.0.1.0/24"),
+		NewPublicSubnet("ap-northeast-1a", "10.0.2.0/24"),
 	}
 
 	for _, testCase := range validCases {
@@ -1461,38 +1466,6 @@ func TestValidateExistingVPC(t *testing.T) {
 
 		if err == nil {
 			t.Errorf("expected to fail validating existing vpc and subnets: %v", testCase)
-		}
-	}
-}
-
-func TestWithTrailingDot(t *testing.T) {
-	tests := [][]string{
-		[]string{
-			"",
-			"",
-		},
-		[]string{
-			"foo.bar.",
-			"foo.bar.",
-		},
-		[]string{
-			"foo.bar",
-			"foo.bar.",
-		},
-	}
-
-	for _, test := range tests {
-		input := test[0]
-		actual := WithTrailingDot(input)
-		expected := test[1]
-
-		if expected != actual {
-			t.Errorf(
-				"WithTrailingDot(\"%s\") expected to return \"%s\" but it returned: \"%s\"",
-				input,
-				expected,
-				actual,
-			)
 		}
 	}
 }

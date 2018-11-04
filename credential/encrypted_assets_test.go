@@ -14,8 +14,57 @@ import (
 
 	"fmt"
 	"github.com/aws/aws-sdk-go/service/kms"
+	"github.com/kubernetes-incubator/kube-aws/pkg/cluster"
+	"github.com/kubernetes-incubator/kube-aws/pki"
 	"github.com/kubernetes-incubator/kube-aws/test/helper"
 )
+
+const externalDNSNameConfig = `externalDNSName: test.staging.core-os.net
+`
+
+const availabilityZoneConfig = `availabilityZone: us-west-1c
+`
+
+const apiEndpointMinimalConfigYaml = `keyName: test-key-name
+region: us-west-1
+s3URI: s3://mybucket/mydir
+clusterName: test-cluster-name
+kmsKeyArn: "arn:aws:kms:us-west-1:xxxxxxxxx:key/xxxxxxxxxxxxxxxxxxx"
+`
+const minimalConfigYaml = externalDNSNameConfig + apiEndpointMinimalConfigYaml
+const singleAzConfigYaml = minimalConfigYaml + availabilityZoneConfig
+
+var goodNetworkingConfigs = []string{
+	``, //Tests validity of default network config values
+	`
+vpcCIDR: 10.4.3.0/24
+instanceCIDR: 10.4.3.0/24
+podCIDR: 172.4.0.0/16
+serviceCIDR: 172.5.0.0/16
+dnsServiceIP: 172.5.100.101
+`, `
+vpcCIDR: 10.4.0.0/16
+instanceCIDR: 10.4.3.0/24
+podCIDR: 10.6.0.0/16
+serviceCIDR: 10.5.0.0/16
+dnsServiceIP: 10.5.100.101
+`, `
+vpcId: vpc-xxxxx
+routeTableId: rtb-xxxxxx
+`, `
+vpcId: vpc-xxxxx
+`, `
+createRecordSet: false
+hostedZoneId: ""
+`, `
+createRecordSet: true
+recordSetTTL: 400
+hostedZoneId: "XXXXXXXXXXX"
+`, `
+createRecordSet: true
+hostedZoneId: "XXXXXXXXXXX"
+`,
+}
 
 type dummyEncryptService struct{}
 
@@ -30,16 +79,17 @@ func (d *dummyEncryptService) Encrypt(input *kms.EncryptInput) (*kms.EncryptOutp
 }
 
 func genAssets(t *testing.T) *RawAssetsOnMemory {
-	cluster, err := ClusterFromBytes([]byte(singleAzConfigYaml))
+	c, err := cluster.ClusterFromBytes([]byte(singleAzConfigYaml))
 	if err != nil {
 		t.Fatalf("failed generating config: %v", err)
 	}
 
-	caKey, caCert, err := cluster.NewTLSCA()
+	caKey, caCert, err := pki.NewCA(c.TLSCADurationDays)
 	if err != nil {
 		t.Fatalf("failed generating tls ca: %v", err)
 	}
-	assets, err := cluster.NewAssetsOnMemory(caKey, caCert, true)
+	r := cluster.NewCredentialRenderer(c)
+	assets, err := r.NewAssetsOnMemory(caKey, caCert, true)
 	if err != nil {
 		t.Fatalf("failed generating assets: %v", err)
 	}

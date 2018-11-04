@@ -1,6 +1,8 @@
 package cluster
 
 import (
+	"fmt"
+	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 	"strings"
 	"testing"
 )
@@ -24,15 +26,33 @@ kubelet:
     enabled: true
 `
 
-func TestRotateCerts(t *testing.T) {
-	controlplane_config, _ := ConfigFromBytes([]byte(cluster_config))
-
-	config, _ := ClusterFromBytes([]byte(""), controlplane_config)
-
-	if !(config.FeatureGates()["RotateKubeletClientCertificate"] == "true") {
-		t.Errorf("When RotateCerts is enabled, Feature Gate RotateKubeletClientCertificate should be automatically enabled too")
+func ConfigFromBytes(data []byte) (*Config, error) {
+	c, err := ClusterFromBytes(data)
+	if err != nil {
+		return nil, err
+	}
+	opts := clusterapi.ClusterOptions{
+		S3URI: c.S3URI,
+		// TODO
+		SkipWait: false,
 	}
 
+	cpConfig, err := Compile(c, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return cpConfig, nil
+}
+
+func TestNodePoolRotateCerts(t *testing.T) {
+	cpconfig, _ := ConfigFromBytes([]byte(cluster_config))
+
+	npconfig, _ := NodePoolCompile(clusterapi.WorkerNodePool{}, cpconfig)
+
+	if !(npconfig.FeatureGates()["RotateKubeletClientCertificate"] == "true") {
+		t.Errorf("When RotateCerts is enabled, Feature Gate RotateKubeletClientCertificate should be automatically enabled too")
+	}
 }
 
 func TestKube2IamKiamClash(t *testing.T) {
@@ -44,9 +64,77 @@ kiamSupport:
   enabled: true
 `
 
-	controlplane_config, _ := ConfigFromBytes([]byte(cluster_config))
-	_, err := ClusterFromBytes([]byte(config), controlplane_config)
+	_, err := ConfigFromBytes([]byte(cluster_config))
 	if err == nil || !strings.Contains(err.Error(), "not both") {
 		t.Errorf("expected config to cause error as kube2iam and kiam cannot be enabled together: %s\n%s", err, config)
+	}
+}
+
+const externalDNSNameConfig = `externalDNSName: test.staging.core-os.net
+`
+
+const availabilityZoneConfig = `availabilityZone: us-west-1c
+`
+
+const apiEndpointMinimalConfigYaml = `keyName: test-key-name
+region: us-west-1
+s3URI: s3://mybucket/mydir
+clusterName: test-cluster-name
+kmsKeyArn: "arn:aws:kms:us-west-1:xxxxxxxxx:key/xxxxxxxxxxxxxxxxxxx"
+`
+const minimalConfigYaml = externalDNSNameConfig + apiEndpointMinimalConfigYaml
+const singleAzConfigYaml = minimalConfigYaml + availabilityZoneConfig
+
+func TestRktConfig(t *testing.T) {
+	validChannels := []string{
+		"alpha",
+		"beta",
+		"stable",
+	}
+
+	conf := func(channel string) string {
+		return fmt.Sprintf(`containerRuntime: rkt
+releaseChannel: %s
+`, channel)
+	}
+
+	for _, channel := range validChannels {
+		confBody := singleAzConfigYaml + conf(channel)
+		_, err := ConfigFromBytes([]byte(confBody))
+		if err != nil {
+			t.Errorf("failed to parse config %s: %v", confBody, err)
+		}
+	}
+}
+
+func TestWithTrailingDot(t *testing.T) {
+	tests := [][]string{
+		[]string{
+			"",
+			"",
+		},
+		[]string{
+			"foo.bar.",
+			"foo.bar.",
+		},
+		[]string{
+			"foo.bar",
+			"foo.bar.",
+		},
+	}
+
+	for _, test := range tests {
+		input := test[0]
+		actual := WithTrailingDot(input)
+		expected := test[1]
+
+		if expected != actual {
+			t.Errorf(
+				"WithTrailingDot(\"%s\") expected to return \"%s\" but it returned: \"%s\"",
+				input,
+				expected,
+				actual,
+			)
+		}
 	}
 }

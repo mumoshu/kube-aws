@@ -23,3 +23,18 @@ func (s *Session) InitCredentials(cfg *Config, opts clusterapi.StackTemplateOpti
 		return rawAssets, nil
 	}
 }
+
+func NewCredentialRenderer(c *clusterapi.Cluster) *credential.Renderer {
+	r := &credential.Renderer{
+		TLSCADurationDays:         c.TLSCADurationDays,
+		TLSCertDurationDays:       c.TLSCertDurationDays,
+		TLSBootstrapEnabled:       c.Experimental.TLSBootstrap.Enabled,
+		ManageCertificates:        c.ManageCertificates,
+		Region:                    c.Region.String(),
+		APIServerExternalDNSNames: c.ExternalDNSNames(),
+		EtcdNodeDNSNames:          c.EtcdCluster().DNSNames(),
+		ServiceCIDR:               c.ServiceCIDR,
+	}
+
+	return r
+}
