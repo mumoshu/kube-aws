@@ -108,7 +108,7 @@ func TestUserDataNew(t *testing.T) {
 		tmpfile.Close()
 		defer os.Remove(tmpfile.Name())
 		t.Run(test.name, func(t *testing.T) {
-			ud, err := NewUserData(tmpfile.Name(), nil, test.opts...)
+			ud, err := NewUserDataFromTemplateFile(tmpfile.Name(), nil, test.opts...)
 			test.exp(assert.New(t), ud, err)
 		})
 	}

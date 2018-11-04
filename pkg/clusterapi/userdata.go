@@ -63,9 +63,10 @@ func UserDataPartsOpt(Parts ...PartDesc) UserDataOption {
 	}
 }
 
-// NewUserData creates userdata struct from template file.
+// NewUserDataFromTemplateFile creates userdata struct from template file.
 // Template file is expected to have defined subtemplates (Parts) which are of various part and storage types
-func NewUserData(templateFile string, context interface{}, opts ...UserDataOption) (UserData, error) {
+// TODO Extract this out of the clusterapi package as this is an "implementation"
+func NewUserDataFromTemplateFile(templateFile string, context interface{}, opts ...UserDataOption) (UserData, error) {
 	v := UserData{Parts: make(map[string]*UserDataPart), Path: templateFile}
 
 	funcs := template.FuncMap{

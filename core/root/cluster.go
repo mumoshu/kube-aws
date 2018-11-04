@@ -192,9 +192,7 @@ func (cl *aggregatedCluster) ensureNestedStacksLoaded() error {
 
 	cfg := cl.Cfg.Config
 
-	sess := cluster.Session{Session: cl.session}
-
-	assetsConfig, err := sess.InitCredentials(cfg, stackTemplateOpts)
+	assetsConfig, err := cluster.InitCredentials(cl.session, cfg, stackTemplateOpts)
 	if err != nil {
 		return fmt.Errorf("failed initializing credentials: %v", err)
 	}

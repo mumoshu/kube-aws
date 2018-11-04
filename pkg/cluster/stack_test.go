@@ -1,8 +1,6 @@
 package cluster
 
 import (
-	"github.com/kubernetes-incubator/kube-aws/core/controlplane/config"
-	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 	"github.com/kubernetes-incubator/kube-aws/test/helper"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -19,13 +17,14 @@ import (
 
 	"github.com/go-yaml/yaml"
 	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
+	"github.com/kubernetes-incubator/kube-aws/plugin/clusterextension"
 )
 
 /*
 TODO(colhom): when we fully deprecate instanceCIDR/availabilityZone, this block of
 logic will go away and be replaced by a single constant string
 */
-func defaultConfigValues(t *testing.T, configYaml string) string {
+func genConfigYamlForTesting(configYaml string) (string, error) {
 	defaultYaml := `
 externalDNSName: test.staging.core-os.net
 keyName: test-key-name
@@ -36,9 +35,9 @@ kmsKeyArn: "arn:aws:kms:us-west-1:xxxxxxxxx:key/xxxxxxxxxxxxxxxxxxx"
 `
 	yamlStr := defaultYaml + configYaml
 
-	c := config.Cluster{}
+	c := clusterapi.Cluster{}
 	if err := yaml.Unmarshal([]byte(yamlStr), &c); err != nil {
-		t.Errorf("failed umarshalling config yaml: %v :\n%s", err, yamlStr)
+		return "", fmt.Errorf("failed umarshalling config yaml: %v :\n%s", err, yamlStr)
 	}
 
 	if len(c.Subnets) > 0 {
@@ -52,10 +51,10 @@ kmsKeyArn: "arn:aws:kms:us-west-1:xxxxxxxxx:key/xxxxxxxxxxxxxxxxxxx"
 
 	out, err := yaml.Marshal(&c)
 	if err != nil {
-		t.Errorf("error marshalling cluster: %v", err)
+		return "", fmt.Errorf("error marshalling cluster: %v", err)
 	}
 
-	return string(out)
+	return string(out), nil
 }
 
 type VPC struct {
@@ -257,15 +256,10 @@ subnets:
 	}
 
 	validateCluster := func(networkConfig string) error {
-		configBody := defaultConfigValues(t, networkConfig)
-		clusterConfig, err := config.ClusterFromBytes([]byte(configBody))
+		cluster, err := newStackRefForTesting(networkConfig)
 		if err != nil {
 			t.Errorf("could not get valid cluster config: %v\n%s", err, networkConfig)
 			return nil
-		}
-
-		cluster := &StackRef{
-			Cluster: clusterConfig,
 		}
 
 		return cluster.validateExistingVPCState(ec2Service)
@@ -285,8 +279,12 @@ subnets:
 }
 
 func TestValidateKeyPair(t *testing.T) {
+	conf, err := genConfigYamlForTesting("")
+	if err != nil {
+		t.Errorf("%v", err)
+	}
 
-	clusterConfig, err := config.ClusterFromBytes([]byte(defaultConfigValues(t, "")))
+	clusterConfig, err := ClusterFromBytes([]byte(conf))
 	if err != nil {
 		t.Errorf("could not get valid cluster config: %v", err)
 	}
@@ -321,7 +319,7 @@ type dummyR53Service struct {
 func (r53 dummyR53Service) ListHostedZonesByName(input *route53.ListHostedZonesByNameInput) (*route53.ListHostedZonesByNameOutput, error) {
 	output := &route53.ListHostedZonesByNameOutput{}
 	for _, zone := range r53.HostedZones {
-		if zone.DNS == config.WithTrailingDot(aws.StringValue(input.DNSName)) {
+		if zone.DNS == WithTrailingDot(aws.StringValue(input.DNSName)) {
 			output.HostedZones = append(output.HostedZones, &route53.HostedZone{
 				Name: aws.String(zone.DNS),
 				Id:   aws.String(zone.Id),
@@ -407,8 +405,12 @@ hostedZoneId: /hostedzone/staging_id_5 #non-existent hostedZoneId
 	}
 
 	for _, validConfig := range validDNSConfigs {
-		configBody := defaultConfigValues(t, validConfig)
-		clusterConfig, err := config.ClusterFromBytes([]byte(configBody))
+		configBody, err := genConfigYamlForTesting(validConfig)
+		if err != nil {
+			t.Errorf("%v", err)
+			return
+		}
+		clusterConfig, err := ClusterFromBytes([]byte(configBody))
 		if err != nil {
 			t.Errorf("could not get valid cluster config in `%s`: %v", configBody, err)
 			continue
@@ -421,8 +423,12 @@ hostedZoneId: /hostedzone/staging_id_5 #non-existent hostedZoneId
 	}
 
 	for _, invalidConfig := range invalidDNSConfigs {
-		configBody := defaultConfigValues(t, invalidConfig)
-		clusterConfig, err := config.ClusterFromBytes([]byte(configBody))
+		configBody, err := genConfigYamlForTesting(invalidConfig)
+		if err != nil {
+			t.Errorf("%v", err)
+			return
+		}
+		clusterConfig, err := ClusterFromBytes([]byte(configBody))
 		if err != nil {
 			t.Errorf("could not get valid cluster config: %v", err)
 			continue
@@ -472,15 +478,8 @@ stackTags:
 	}
 
 	for _, testCase := range testCases {
-		configBody := defaultConfigValues(t, testCase.clusterYaml)
-		clusterConfig, err := config.ClusterFromBytesWithEncryptService([]byte(configBody), helper.DummyEncryptService{})
-		if err != nil {
-			t.Errorf("could not get valid cluster config: %v", err)
-			continue
-		}
-
 		helper.WithDummyCredentials(func(dummyAssetsDir string) {
-			var stackTemplateOptions = config.StackTemplateOptions{
+			var stackTemplateOptions = clusterapi.StackTemplateOptions{
 				AssetsDir:             dummyAssetsDir,
 				ControllerTmplFile:    "../config/templates/cloud-config-controller",
 				EtcdTmplFile:          "../config/templates/cloud-config-etcd",
@@ -488,12 +487,12 @@ stackTags:
 				S3URI:                 "s3://test-bucket/foo/bar",
 			}
 
-			cluster, err := NewControlPlaneStack(clusterConfig, stackTemplateOptions, []*clusterapi.Plugin{}, nil)
+			stack, err := newStackForTesting(testCase.clusterYaml, stackTemplateOptions)
 			if !assert.NoError(t, err) {
 				return
 			}
 
-			assets := cluster.buildAssets()
+			assets, err := stack.buildAssets()
 			if !assert.NoError(t, err) {
 				return
 			}
@@ -669,15 +668,10 @@ controllerRootVolumeIOPS: 20000
 	}
 
 	for _, testCase := range testCases {
-		configBody := defaultConfigValues(t, testCase.clusterYaml)
-		clusterConfig, err := config.ClusterFromBytes([]byte(configBody))
+		c, err := newStackRefForTesting(testCase.clusterYaml)
 		if err != nil {
-			t.Errorf("could not get valid cluster config: %v", err)
-			continue
-		}
-
-		c := &StackRef{
-			Cluster: clusterConfig,
+			t.Errorf("%v", err)
+			return
 		}
 
 		ec2Svc := &dummyEC2Service{
@@ -690,38 +684,85 @@ controllerRootVolumeIOPS: 20000
 	}
 }
 
-func newDefaultClusterWithDeps(opts config.StackTemplateOptions) (*Cluster, error) {
-	cluster := config.NewDefaultCluster()
-	cluster.HyperkubeImage.Tag = cluster.K8sVer
-	cluster.ProvidedEncryptService = helper.DummyEncryptService{}
+func newStackRefForTesting(yaml string) (*StackRef, error) {
+	conf, err := genConfigYamlForTesting(yaml)
+	if err != nil {
+		return nil, err
+	}
 
-	cluster.Region = clusterapi.RegionForName("us-west-1")
-	cluster.Subnets = []clusterapi.Subnet{
+	c, err := ClusterFromBytes([]byte(conf))
+	if err != nil {
+		return nil, err
+	}
+
+	return &StackRef{Cluster: c}, nil
+}
+
+func newStackForTesting(yaml string, opts clusterapi.StackTemplateOptions) (*Stack, error) {
+	conf, err := genConfigYamlForTesting(yaml)
+	if err != nil {
+		return nil, err
+	}
+
+	c, err := ClusterFromBytes([]byte(conf))
+	if err != nil {
+		return nil, err
+	}
+
+	return clusterToStackForTesting(c, opts)
+}
+
+func defaultStackForTesting(opts clusterapi.StackTemplateOptions) (*Stack, error) {
+	c := clusterapi.NewDefaultCluster()
+	c.HyperkubeImage.Tag = c.K8sVer
+
+	c.Region = clusterapi.RegionForName("us-west-1")
+	c.Subnets = []clusterapi.Subnet{
 		clusterapi.NewPublicSubnet("us-west-1a", "10.0.1.0/24"),
 		clusterapi.NewPublicSubnet("us-west-1b", "10.0.2.0/24"),
 	}
-	cluster.ExternalDNSName = "foo.example.com"
-	cluster.KeyName = "mykey"
-	cluster.S3URI = "s3://mybucket/mydir"
-	cluster.KMSKeyARN = "arn:aws:kms:us-west-1:xxxxxxxxx:key/xxxxxxxxxxxxxxxxxxx"
-	if err := cluster.Load(); err != nil {
-		return &Cluster{}, err
+	c.ExternalDNSName = "foo.example.com"
+	c.KeyName = "mykey"
+	c.S3URI = "s3://mybucket/mydir"
+	c.KMSKeyARN = "arn:aws:kms:us-west-1:xxxxxxxxx:key/xxxxxxxxxxxxxxxxxxx"
+
+	return clusterToStackForTesting(c, opts)
+}
+
+func clusterToStackForTesting(c *clusterapi.Cluster, opts clusterapi.StackTemplateOptions) (*Stack, error) {
+	compiled, err := Compile(c, clusterapi.ClusterOptions{})
+	if err != nil {
+		return nil, err
 	}
-	return NewControlPlaneStack(cluster, opts, []*clusterapi.Plugin{}, nil)
+
+	sess := &Session{
+		ProvidedEncryptService: helper.DummyEncryptService{},
+	}
+	assets, err := sess.InitCredentials(compiled, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	stack, err := NewControlPlaneStack(compiled, opts, clusterextension.NewExtras(), assets)
+	if err != nil {
+		return nil, err
+	}
+
+	return stack, nil
 }
 
 func TestRenderStackTemplate(t *testing.T) {
 	helper.WithDummyCredentials(func(dir string) {
-		var stackTemplateOptions = config.StackTemplateOptions{
+		var stackTemplateOptions = clusterapi.StackTemplateOptions{
 			AssetsDir:             dir,
 			ControllerTmplFile:    "../config/templates/cloud-config-controller",
 			EtcdTmplFile:          "../config/templates/cloud-config-etcd",
 			StackTemplateTmplFile: "../config/templates/stack-template.json",
 			S3URI:                 "s3://test-bucket/foo/bar",
 		}
-		cluster, err := newDefaultClusterWithDeps(stackTemplateOptions)
+		stack, err := defaultStackForTesting(stackTemplateOptions)
 		if assert.NoError(t, err, "Unable to initialize Cluster") {
-			_, err = cluster.StackConfig.RenderStackTemplateAsString()
+			_, err = stack.RenderStackTemplateAsString()
 			assert.NoError(t, err, "Unable to render stack template")
 		}
 	})

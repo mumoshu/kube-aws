@@ -37,7 +37,7 @@ func (s *Stack) RenderAndAddUserData(id, userdataTmplPath string) error {
 		s.UserData = map[string]clusterapi.UserData{}
 	}
 
-	s.UserData[id], err = clusterapi.NewUserData(userdataTmplPath, s.tmplCtx)
+	s.UserData[id], err = clusterapi.NewUserDataFromTemplateFile(userdataTmplPath, s.tmplCtx)
 
 	if err != nil {
 		return fmt.Errorf("failed to render userdata: %v", err)

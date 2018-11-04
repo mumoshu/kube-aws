@@ -1,4 +1,4 @@
-package clusterapi
+package cluster
 
 import (
 	"io/ioutil"
@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/coreos/coreos-cloudinit/config/validate"
 	"github.com/kubernetes-incubator/kube-aws/builtin"
+	"github.com/kubernetes-incubator/kube-aws/credential"
 	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 	"github.com/kubernetes-incubator/kube-aws/test/helper"
 	"github.com/stretchr/testify/assert"
@@ -53,29 +54,24 @@ func TestDummyEncryptService(t *testing.T) {
 }
 
 func TestCloudConfigTemplating(t *testing.T) {
-	cluster, err := ClusterFromBytes([]byte(singleAzConfigYaml))
+	cfg, err := ConfigFromBytes([]byte(singleAzConfigYaml))
 	if err != nil {
 		t.Fatalf("Unable to load cluster config: %v", err)
 	}
 
-	cfg, err := cluster.Config()
-	if err != nil {
-		t.Fatalf("Failed to create config: %v", err)
-	}
-
-	opts := CredentialsOptions{
+	opts := credential.CredentialsOptions{
 		GenerateCA: true,
 		KIAM:       true,
 	}
 
-	var compactAssets *CompactAssets
+	var compactAssets *credential.CompactAssets
 
-	cachedEncryptor := CachedEncryptor{
+	cachedEncryptor := credential.CachedEncryptor{
 		KMSEncryptionService: KMSEncryptionService{kmsKeyARN: cfg.KMSKeyARN, kmsSvc: &dummyEncryptService{}},
 	}
 
 	helper.WithTempDir(func(dir string) {
-		_, err = cluster.NewAssetsOnDisk(dir, opts)
+		_, err = cfg.NewAssetsOnDisk(dir, opts)
 		if err != nil {
 			t.Fatalf("Error generating default assets: %v", err)
 		}
@@ -112,7 +108,7 @@ func TestCloudConfigTemplating(t *testing.T) {
 		tmpfile.Close()
 		defer os.Remove(tmpfile.Name())
 
-		udata, err := clusterapi.NewUserData(tmpfile.Name(), cfg)
+		udata, err := clusterapi.NewUserDataFromTemplateFile(tmpfile.Name(), cfg)
 		if !assert.NoError(t, err, "Error loading template %s", cloudTemplate.Name) {
 			continue
 		}

@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/kubernetes-incubator/kube-aws/core/controlplane/config"
+	"github.com/kubernetes-incubator/kube-aws/credential"
 	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 	"github.com/kubernetes-incubator/kube-aws/test/helper"
 )
@@ -37,7 +37,7 @@ type kubeAwsSettings struct {
 	keyName                       string
 	kmsKeyArn                     string
 	region                        string
-	encryptService                config.EncryptService
+	encryptService                credential.KMSEncryptionService
 }
 
 func newKubeAwsSettingsFromEnv(t *testing.T) kubeAwsSettings {

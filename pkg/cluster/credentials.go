@@ -1,9 +1,15 @@
 package cluster
 
 import (
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/kubernetes-incubator/kube-aws/credential"
 	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 )
+
+func InitCredentials(sess *session.Session, cfg *Config, opts clusterapi.StackTemplateOptions) (*credential.CompactAssets, error) {
+	s := &Session{Session: sess}
+	return s.InitCredentials(cfg, opts)
+}
 
 func (s *Session) InitCredentials(cfg *Config, opts clusterapi.StackTemplateOptions) (*credential.CompactAssets, error) {
 	if cfg.AssetsEncryptionEnabled() {

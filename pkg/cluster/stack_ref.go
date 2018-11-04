@@ -13,7 +13,7 @@ import (
 	"strings"
 )
 
-func newClusterRef(cfg *clusterapi.Cluster, session *session.Session) *StackRef {
+func newStackRef(cfg *clusterapi.Cluster, session *session.Session) *StackRef {
 	return &StackRef{
 		Cluster: cfg,
 		session: session,
