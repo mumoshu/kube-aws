@@ -90,7 +90,7 @@ func (c Controller) InstanceProfileRoles() string {
 }
 
 func (c Controller) InstanceProfileRole() string {
-	if c.IAMConfig.Role.UseStrict && c.IAMConfig.Role.Name != "" {
+	if c.IAMConfig.Role.StrictName && c.IAMConfig.Role.Name != "" {
 		return c.IAMConfig.Role.Name
 	} else {
 		return `{"Ref":"IAMRoleController"}`
