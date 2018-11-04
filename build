@@ -21,7 +21,19 @@ fi
 
 echo Building kube-aws ${VERSION}
 
-packr -z
+printf 'Checking existence of the `packr` command that is used for embedding files into the resulting binary...'
+if ! which packr 1>/dev/null; then
+  echo not found. installing...
+  go get -u github.com/gobuffalo/packr/packr
+  echo 'Installed `packr`.'
+  printf 'Ensuring that the installed command is available via PATH...'
+  export PATH=$PATH:$GOPATH/bin
+  echo 'done. PATH is now '"$PATH"
+else
+  echo found. Skipped installation.
+fi
+
+packr -vz
 
 if [[ ! "${BUILD_GOOS:-}" == "" ]];then
   export GOOS=$BUILD_GOOS
