@@ -258,7 +258,7 @@ func (cl *aggregatedCluster) ensureNestedStacksLoaded() error {
 }
 
 func (cl *aggregatedCluster) NewAssetsOnDisk(dir string, opts credential.CredentialsOptions) (*credential.RawAssetsOnDisk, error) {
-	r := cluster.NewCredentialRenderer(cl.Cfg)
+	r := cluster.NewCredentialRenderer(cl.Cfg.Config)
 	a, err := r.NewAssetsOnDisk(dir, opts)
 	if err != nil {
 		return nil, err
