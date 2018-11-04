@@ -73,6 +73,7 @@ func NewControlPlaneStack(conf *Config, opts clusterapi.StackTemplateOptions, ex
 			}
 			conf.Kubelet.Mounts = append(conf.Kubelet.Mounts, extraController.KubeletVolumeMounts...)
 			conf.APIServerFlags = append(conf.APIServerFlags, extraController.APIServerFlags...)
+			conf.ControllerFlags = append(conf.ControllerFlags, extraController.ControllerFlags...)
 			conf.APIServerVolumes = append(conf.APIServerVolumes, extraController.APIServerVolumes...)
 			conf.Controller.CustomSystemdUnits = append(conf.Controller.CustomSystemdUnits, extraController.SystemdUnits...)
 			conf.Controller.CustomFiles = append(conf.Controller.CustomFiles, extraController.Files...)

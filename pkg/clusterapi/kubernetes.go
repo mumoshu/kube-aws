@@ -14,6 +14,7 @@ type Kubernetes struct {
 
 type ControllerManager struct {
 	ComputeResources ComputeResources `yaml:"resources,omitempty"`
+	Flags            CommandLineFlags `yaml:"flags,omitempty"`
 }
 
 type ComputeResources struct {

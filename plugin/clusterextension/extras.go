@@ -73,8 +73,9 @@ type worker struct {
 
 type controller struct {
 	ArchivedFiles       []provisioner.RemoteFileSpec
-	APIServerFlags      clusterapi.APIServerFlags
+	APIServerFlags      clusterapi.CommandLineFlags
 	APIServerVolumes    clusterapi.APIServerVolumes
+	ControllerFlags     clusterapi.CommandLineFlags
 	CfnInitConfigSets   map[string]interface{}
 	Files               []clusterapi.CustomFile
 	SystemdUnits        []clusterapi.CustomSystemdUnit
@@ -270,8 +271,9 @@ func (e ClusterExtension) EtcdStack(config interface{}) (*stack, error) {
 }
 
 func (e ClusterExtension) Controller(clusterConfig interface{}) (*controller, error) {
-	apiServerFlags := clusterapi.APIServerFlags{}
+	apiServerFlags := clusterapi.CommandLineFlags{}
 	apiServerVolumes := clusterapi.APIServerVolumes{}
+	controllerFlags := clusterapi.CommandLineFlags{}
 	systemdUnits := []clusterapi.CustomSystemdUnit{}
 	files := []clusterapi.CustomFile{}
 	iamStatements := clusterapi.IAMPolicyStatements{}
@@ -295,11 +297,22 @@ func (e ClusterExtension) Controller(clusterConfig interface{}) (*controller, er
 					if err != nil {
 						return nil, fmt.Errorf("failed to load apisersver flags: %v", err)
 					}
-					newFlag := clusterapi.APIServerFlag{
+					newFlag := clusterapi.CommandLineFlag{
 						Name:  f.Name,
 						Value: v,
 					}
 					apiServerFlags = append(apiServerFlags, newFlag)
+				}
+				for _, f := range p.Spec.Cluster.Kubernetes.ControllerManager.Flags {
+					v, err := render.String(f.Value)
+					if err != nil {
+						return nil, fmt.Errorf("failed to load controller-manager flags: %v", err)
+					}
+					newFlag := clusterapi.CommandLineFlag{
+						Name:  f.Name,
+						Value: v,
+					}
+					controllerFlags = append(controllerFlags, newFlag)
 				}
 			}
 
@@ -447,6 +460,7 @@ func (e ClusterExtension) Controller(clusterConfig interface{}) (*controller, er
 	return &controller{
 		ArchivedFiles:           archivedFiles,
 		APIServerFlags:          apiServerFlags,
+		ControllerFlags:         controllerFlags,
 		APIServerVolumes:        apiServerVolumes,
 		Files:                   files,
 		SystemdUnits:            systemdUnits,

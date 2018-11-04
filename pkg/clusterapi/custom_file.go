@@ -15,7 +15,7 @@ type CustomFile struct {
 	Permissions uint   `yaml:"permissions"`
 	Content     string `yaml:"content,omitempty"`
 	Template    string `yaml:"template,omitempty"`
-	Type string `yaml:"type,omitempty`
+	Type        string `yaml:"type,omitempty`
 	UnknownKeys `yaml:",inline"`
 }
 
@@ -51,7 +51,7 @@ func (c CustomFile) RenderGzippedBase64Content(ctx interface{}) (string, error) 
 	var content string
 	// Every credential is already encrypted by AWS KMS that its ciphertext is already a base64-encoded string.
 	if c.Type == "credential" {
-		content =  c.Content
+		content = c.Content
 	} else {
 		var err error
 		content, err = c.RenderContent(ctx)

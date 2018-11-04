@@ -23,8 +23,9 @@ func Compile(cfgRef *clusterapi.Cluster, opts clusterapi.ClusterOptions) (*Confi
 
 	config := Config{
 		Cluster:          c,
-		APIServerFlags:   clusterapi.APIServerFlags{},
+		APIServerFlags:   clusterapi.CommandLineFlags{},
 		APIServerVolumes: clusterapi.APIServerVolumes{},
+		ControllerFlags:  clusterapi.CommandLineFlags{},
 	}
 
 	if c.AmiId == "" {

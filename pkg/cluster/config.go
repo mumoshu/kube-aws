@@ -30,7 +30,8 @@ type Config struct {
 	EtcdNodes []derived.EtcdNode
 
 	APIServerVolumes clusterapi.APIServerVolumes
-	APIServerFlags   clusterapi.APIServerFlags
+	APIServerFlags   clusterapi.CommandLineFlags
+	ControllerFlags  clusterapi.CommandLineFlags
 
 	KubernetesManifestFiles []*provisioner.RemoteFile
 	HelmReleaseFilesets     []clusterapi.HelmReleaseFileset

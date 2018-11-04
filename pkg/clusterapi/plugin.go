@@ -155,13 +155,13 @@ func (k *Kubernetes) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 type KubernetesAPIServer struct {
-	Flags   APIServerFlags   `yaml:"flags,omitempty"`
+	Flags   CommandLineFlags `yaml:"flags,omitempty"`
 	Volumes APIServerVolumes `yaml:"volumes,omitempty"`
 }
 
-type APIServerFlags []APIServerFlag
+type CommandLineFlags []CommandLineFlag
 
-type APIServerFlag struct {
+type CommandLineFlag struct {
 	// Name is the name of a command-line flag passed to the k8s apiserver.
 	// For example, a name 	is "oidc-issuer-url" for the flag `--oidc-issuer-url`.
 	Name string `yaml:"name,omitempty"`
