@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/kubernetes-incubator/kube-aws/pkg/cluster"
+	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 	"github.com/kubernetes-incubator/kube-aws/pki"
 	"github.com/kubernetes-incubator/kube-aws/test/helper"
 )
@@ -88,7 +89,8 @@ func genAssets(t *testing.T) *RawAssetsOnMemory {
 	if err != nil {
 		t.Fatalf("failed generating tls ca: %v", err)
 	}
-	r := cluster.NewCredentialRenderer(c)
+	cfg, err := cluster.Compile(c, clusterapi.ClusterOptions{})
+	r := cluster.NewCredentialRenderer(cfg)
 	assets, err := r.NewAssetsOnMemory(caKey, caCert, true)
 	if err != nil {
 		t.Fatalf("failed generating assets: %v", err)

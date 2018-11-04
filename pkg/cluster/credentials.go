@@ -24,7 +24,7 @@ func (s *Session) InitCredentials(cfg *Config, opts clusterapi.StackTemplateOpti
 	}
 }
 
-func NewCredentialRenderer(c *clusterapi.Cluster) *credential.Renderer {
+func NewCredentialRenderer(c *Config) *credential.Renderer {
 	r := &credential.Renderer{
 		TLSCADurationDays:         c.TLSCADurationDays,
 		TLSCertDurationDays:       c.TLSCertDurationDays,
