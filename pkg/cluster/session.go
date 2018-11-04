@@ -125,10 +125,10 @@ func (s *Session) lookupExistingEtcdEndpoints(c *Config) (string, error) {
 func (s *Session) ValidateNodePoolStack(c *NodePoolConfig, stack *Stack) (string, error) {
 	ec2Svc := ec2.New(s.Session)
 
-	ref := &NodePoolStackRef{
+	ref := newNodePoolStackRef(
 		c,
 		s.Session,
-	}
+	)
 	if err := ref.validateWorkerRootVolume(ec2Svc); err != nil {
 		return "", err
 	}

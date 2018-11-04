@@ -22,7 +22,7 @@ type NodePoolStackRef struct {
 	session *session.Session
 }
 
-func newStackRef(cfg *NodePoolConfig, session *session.Session) *NodePoolStackRef {
+func newNodePoolStackRef(cfg *NodePoolConfig, session *session.Session) *NodePoolStackRef {
 	return &NodePoolStackRef{
 		NodePoolConfig: cfg,
 		session:        session,

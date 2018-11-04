@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"errors"
 	"fmt"
 	"github.com/kubernetes-incubator/kube-aws/coreos/amiregistry"
 	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
@@ -90,6 +91,32 @@ func Compile(cfgRef *clusterapi.Cluster, opts clusterapi.ClusterOptions) (*Confi
 	if opts.SkipWait {
 		enabled := false
 		c.WaitSignal.EnabledOverride = &enabled
+	}
+
+	for i, np := range config.Worker.NodePools {
+		if err := np.Taints.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid taints for node pool at index %d: %v", i, err)
+		}
+		if np.APIEndpointName == "" {
+			if c.Worker.APIEndpointName == "" {
+				if len(config.APIEndpoints) > 1 {
+					return nil, errors.New("worker.apiEndpointName can be omitted only when there's only 1 api endpoint under apiEndpoints")
+				}
+				np.APIEndpointName = config.APIEndpoints.GetDefault().Name
+			} else {
+				np.APIEndpointName = c.Worker.APIEndpointName
+			}
+		}
+
+		if np.NodePoolRollingStrategy != "Parallel" && np.NodePoolRollingStrategy != "Sequential" {
+			if c.Worker.NodePoolRollingStrategy != "" && (c.Worker.NodePoolRollingStrategy == "Sequential" || c.Worker.NodePoolRollingStrategy == "Parallel") {
+				np.NodePoolRollingStrategy = c.Worker.NodePoolRollingStrategy
+			} else {
+				np.NodePoolRollingStrategy = "Parallel"
+			}
+		}
+
+		config.Worker.NodePools[i] = np
 	}
 
 	return &config, nil

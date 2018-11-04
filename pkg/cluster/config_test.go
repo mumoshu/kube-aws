@@ -45,6 +45,15 @@ func ConfigFromBytes(data []byte) (*Config, error) {
 	return cpConfig, nil
 }
 
+func NodePoolConfigFromBytes(data []byte) (*NodePoolConfig, error) {
+	c, err := ConfigFromBytes(data)
+	if err != nil {
+		return nil, err
+	}
+
+	return NodePoolCompile(c.Worker.NodePools[0], c)
+}
+
 func TestNodePoolRotateCerts(t *testing.T) {
 	cpconfig, _ := ConfigFromBytes([]byte(cluster_config))
 

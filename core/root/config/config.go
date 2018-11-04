@@ -110,28 +110,6 @@ func ConfigFromBytes(data []byte, plugins []*clusterapi.Plugin) (*Config, error)
 
 	nps := []*cluster.NodePoolConfig{}
 	for i, np := range nodePools {
-		if err := np.Taints.Validate(); err != nil {
-			return nil, fmt.Errorf("invalid taints for node pool at index %d: %v", i, err)
-		}
-		if np.APIEndpointName == "" {
-			if c.Worker.APIEndpointName == "" {
-				if len(cpConfig.APIEndpoints) > 1 {
-					return nil, errors.New("worker.apiEndpointName can be omitted only when there's only 1 api endpoint under apiEndpoints")
-				}
-				np.APIEndpointName = cpConfig.APIEndpoints.GetDefault().Name
-			} else {
-				np.APIEndpointName = c.Worker.APIEndpointName
-			}
-		}
-
-		if np.NodePoolRollingStrategy != "Parallel" && np.NodePoolRollingStrategy != "Sequential" {
-			if c.Worker.NodePoolRollingStrategy != "" && (c.Worker.NodePoolRollingStrategy == "Sequential" || c.Worker.NodePoolRollingStrategy == "Parallel") {
-				np.NodePoolRollingStrategy = c.Worker.NodePoolRollingStrategy
-			} else {
-				np.NodePoolRollingStrategy = "Parallel"
-			}
-		}
-
 		npConf, err := cluster.NodePoolCompile(np, cpConfig)
 		if err != nil {
 			return nil, fmt.Errorf("invalid node pool at index %d: %v", i, err)

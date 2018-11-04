@@ -6,7 +6,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/stretchr/testify/assert"
 
-	controlplane "github.com/kubernetes-incubator/kube-aws/core/controlplane/config"
 	"github.com/kubernetes-incubator/kube-aws/core/nodepool/config"
 	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 	"github.com/kubernetes-incubator/kube-aws/test/helper"
@@ -15,8 +14,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-
-	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 )
 
 type dummyEC2CreateVolumeService struct {
@@ -92,17 +89,17 @@ func (svc dummyEC2DescribeKeyPairsService) DescribeKeyPairs(input *ec2.DescribeK
 	return output, nil
 }
 
-func clusterRefFromBytes(bytes []byte, main *controlplane.Config) (*NodePoolStackRef, error) {
-	provided, err := config.ClusterFromBytes(bytes, main)
+func clusterRefFromBytes(bytes []byte) (*NodePoolStackRef, error) {
+	provided, err := NodePoolConfigFromBytes(bytes)
 	if err != nil {
 		return nil, err
 	}
-	c := newStackRef(provided, nil)
+	c := newNodePoolStackRef(provided, nil)
 	return c, nil
 }
 
-func TestValidateKeyPair(t *testing.T) {
-	main, err := controlplane.ConfigFromBytes([]byte(`clusterName: test-cluster
+func TestNodePoolStackValidateKeyPair(t *testing.T) {
+	main := `clusterName: test-cluster
 s3URI: s3://mybucket/mydir
 apiEndpoints:
 - name: public
@@ -115,12 +112,8 @@ keyName: mykey
 kmsKeyArn: arn:aws:kms:us-west-1:xxxxxxxxx:key/xxxxxxxxxxxxxxxxxxx
 region: us-west-1
 availabilityZone: us-west-1a
-`))
-	if err != nil {
-		t.Errorf("[bug] failed to initialize test cluster : %v", err)
-	}
-
-	c, err := clusterRefFromBytes([]byte(minimalYaml), main)
+`
+	c, err := clusterRefFromBytes([]byte(main + minimalYaml))
 	if err != nil {
 		t.Errorf("could not get valid cluster config: %v", err)
 	}
@@ -140,11 +133,13 @@ availabilityZone: us-west-1a
 	}
 }
 
-const minimalYaml = `name: pool1
+const minimalYaml = `worker:
+  nodePools:
+  - name: pool1
 `
 
 func TestValidateWorkerRootVolume(t *testing.T) {
-	main, err := controlplane.ConfigFromBytes([]byte(`clusterName: test-cluster
+	m := `clusterName: test-cluster
 s3URI: s3://mybucket/mydir
 apiEndpoints:
 - name: public
@@ -155,11 +150,7 @@ keyName: mykey
 kmsKeyArn: arn:aws:kms:us-west-1:xxxxxxxxx:key/xxxxxxxxxxxxxxxxxxx
 region: us-west-1
 availabilityZone: dummy-az-0
-`))
-	if err != nil {
-		t.Errorf("[bug] failed to initialize test cluster : %v", err)
-	}
-
+`
 	testCases := []struct {
 		expectedRootVolume *ec2.CreateVolumeInput
 		clusterYaml        string
@@ -179,8 +170,8 @@ availabilityZone: dummy-az-0
 				VolumeType: aws.String("standard"),
 			},
 			clusterYaml: `
-rootVolume:
-  type: standard
+    rootVolume:
+      type: standard
 `,
 		},
 		{
@@ -189,9 +180,9 @@ rootVolume:
 				VolumeType: aws.String("gp2"),
 			},
 			clusterYaml: `
-rootVolume:
-  type: gp2
-  size: 50
+    rootVolume:
+      type: gp2
+      size: 50
 `,
 		},
 		{
@@ -201,17 +192,17 @@ rootVolume:
 				VolumeType: aws.String("io1"),
 			},
 			clusterYaml: `
-rootVolume:
-  type: io1
-  size: 100
-  iops: 20000
+    rootVolume:
+      type: io1
+      size: 100
+      iops: 20000
 `,
 		},
 	}
 
 	for _, testCase := range testCases {
-		configBody := minimalYaml + testCase.clusterYaml
-		c, err := clusterRefFromBytes([]byte(configBody), main)
+		configBody := m + minimalYaml + testCase.clusterYaml
+		c, err := clusterRefFromBytes([]byte(configBody))
 		if err != nil {
 			t.Errorf("failed to read cluster config: %v", err)
 		}
@@ -224,67 +215,4 @@ rootVolume:
 			t.Errorf("error creating cluster: %v\nfor test case %+v", err, testCase)
 		}
 	}
-}
-
-func TestStackUploadsAndCreation(t *testing.T) {
-	mainConfigBody := `
-apiEndpoints:
-- name: public
-  dnsName: test.staging.core-os.net
-  loadBalancer:
-    recordSetManaged: false
-keyName: test-key-name
-region: us-west-1
-clusterName: test-cluster-name
-s3URI: s3://mybucket/mydir
-kmsKeyArn: arn:aws:kms:us-west-1:xxxxxxxxx:key/xxxxxxxxxxxxxxxxxxx
-availabilityZone: us-west-1a
-`
-
-	nodePoolConfigBody := `
-name: pool1
-`
-	main, err := controlplane.ConfigFromBytes([]byte(mainConfigBody))
-	if !assert.NoError(t, err, "failed to get valid cluster config") {
-		return
-	}
-
-	clusterConfig, err := config.ClusterFromBytesWithEncryptService([]byte(nodePoolConfigBody), main, helper.DummyEncryptService{})
-	if !assert.NoError(t, err, "could not get valid cluster config") {
-		return
-	}
-
-	helper.WithDummyCredentials(func(dummyAssetsDir string) {
-		var stackTemplateOptions = config.NodePoolStackTemplateOptions{
-			AssetsDir:             dummyAssetsDir,
-			StackTemplateTmplFile: "../config/templates/stack-template.json",
-			WorkerTmplFile:        "../../nodepool/config/templates/cloud-config-worker",
-			S3URI:                 "s3://test-bucket/foo/bar",
-		}
-
-		cluster, err := NewCluster(clusterConfig, stackTemplateOptions, []*clusterapi.Plugin{}, nil)
-		if !assert.NoError(t, err) {
-			return
-		}
-
-		assets := cluster.Assets()
-		if !assert.NoError(t, err) {
-			return
-		}
-
-		userdataFilename := ""
-		var asset clusterapi.Asset
-		var id clusterapi.AssetID
-		for id, asset = range assets.AsMap() {
-			if strings.HasPrefix(id.Filename, "userdata-worker-") {
-				userdataFilename = id.Filename
-				break
-			}
-		}
-		assert.NotZero(t, userdataFilename, "Unable to find userdata-worker asset")
-
-		path, err := asset.S3Prefix()
-		assert.NoError(t, err)
-		assert.Equal(t, "test-bucket/foo/bar/kube-aws/clusters/test-cluster-name/exported/stacks/pool1/userdata-worker", path, "UserDataWorker.S3Prefix returned an unexpected value")
-	})
 }
