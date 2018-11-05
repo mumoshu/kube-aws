@@ -16,8 +16,11 @@ import (
 	"testing"
 
 	"github.com/go-yaml/yaml"
+	"github.com/kubernetes-incubator/kube-aws/credential"
 	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 	"github.com/kubernetes-incubator/kube-aws/plugin/clusterextension"
+	"os"
+	"path/filepath"
 )
 
 /*
@@ -477,14 +480,18 @@ stackTags:
 		},
 	}
 
+	pwd, err := os.Getwd()
+	if err != nil {
+		t.Errorf("%v", err)
+		t.FailNow()
+	}
 	for _, testCase := range testCases {
 		helper.WithDummyCredentials(func(dummyAssetsDir string) {
 			var stackTemplateOptions = clusterapi.StackTemplateOptions{
 				AssetsDir:             dummyAssetsDir,
-				ControllerTmplFile:    "../config/templates/cloud-config-controller",
-				EtcdTmplFile:          "../config/templates/cloud-config-etcd",
-				StackTemplateTmplFile: "../config/templates/stack-template.json",
-				S3URI:                 "s3://test-bucket/foo/bar",
+				ControllerTmplFile:    filepath.Join(pwd, "../../builtin/files/userdata/cloud-config-controller"),
+				EtcdTmplFile:          filepath.Join(pwd, "../../builtin/files/userdata/cloud-config-etcd"),
+				StackTemplateTmplFile: filepath.Join(pwd, "../../builtin/files/stack-templates/control-plane.json.tmpl"),
 			}
 
 			stack, err := newStackForTesting(testCase.clusterYaml, stackTemplateOptions)
@@ -510,7 +517,7 @@ stackTags:
 
 			path, err := asset.S3Prefix()
 			assert.NoError(t, err)
-			assert.Equal(t, "test-bucket/foo/bar/kube-aws/clusters/test-cluster-name/exported/stacks/control-plane/userdata-controller", path, "UserDataController.S3Prefix returned an unexpected value")
+			assert.Equal(t, "mybucket/mydir/kube-aws/clusters/test-cluster-name/exported/stacks/control-plane/userdata-controller", path, "UserDataController.S3Prefix returned an unexpected value")
 		})
 	}
 }
@@ -704,7 +711,11 @@ func newStackForTesting(yaml string, opts clusterapi.StackTemplateOptions) (*Sta
 		return nil, err
 	}
 
-	c, err := ClusterFromBytes([]byte(conf))
+	return yamlToStackForTesting(conf, opts)
+}
+
+func yamlToStackForTesting(yaml string, opts clusterapi.StackTemplateOptions) (*Stack, error) {
+	c, err := ClusterFromBytes([]byte(yaml))
 	if err != nil {
 		return nil, err
 	}
@@ -726,6 +737,10 @@ func defaultStackForTesting(opts clusterapi.StackTemplateOptions) (*Stack, error
 	c.S3URI = "s3://mybucket/mydir"
 	c.KMSKeyARN = "arn:aws:kms:us-west-1:xxxxxxxxx:key/xxxxxxxxxxxxxxxxxxx"
 
+	if err := c.Load(ControlPlaneStackName); err != nil {
+		return nil, err
+	}
+
 	return clusterToStackForTesting(c, opts)
 }
 
@@ -738,7 +753,17 @@ func clusterToStackForTesting(c *clusterapi.Cluster, opts clusterapi.StackTempla
 	sess := &Session{
 		ProvidedEncryptService: helper.DummyEncryptService{},
 	}
-	assets, err := sess.InitCredentials(compiled, opts)
+
+	genopts := credential.GeneratorOptions{
+		GenerateCA: true,
+		KIAM:       true,
+	}
+
+	if _, err := sess.GenerateAssetsOnDisk(compiled, opts.AssetsDir, genopts); err != nil {
+		return nil, fmt.Errorf("failed  generating default assets: %v", err)
+	}
+
+	assets, err := sess.LoadCredentials(compiled, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -752,13 +777,17 @@ func clusterToStackForTesting(c *clusterapi.Cluster, opts clusterapi.StackTempla
 }
 
 func TestRenderStackTemplate(t *testing.T) {
+	pwd, err := os.Getwd()
+	if err != nil {
+		t.Errorf("%v", err)
+		t.FailNow()
+	}
 	helper.WithDummyCredentials(func(dir string) {
 		var stackTemplateOptions = clusterapi.StackTemplateOptions{
 			AssetsDir:             dir,
-			ControllerTmplFile:    "../config/templates/cloud-config-controller",
-			EtcdTmplFile:          "../config/templates/cloud-config-etcd",
-			StackTemplateTmplFile: "../config/templates/stack-template.json",
-			S3URI:                 "s3://test-bucket/foo/bar",
+			ControllerTmplFile:    filepath.Join(pwd, "../../builtin/files/userdata/cloud-config-controller"),
+			EtcdTmplFile:          filepath.Join(pwd, "../../builtin/files/userdata/cloud-config-etcd"),
+			StackTemplateTmplFile: filepath.Join(pwd, "../../builtin/files/stack-templates/control-plane.json.tmpl"),
 		}
 		stack, err := defaultStackForTesting(stackTemplateOptions)
 		if assert.NoError(t, err, "Unable to initialize Cluster") {

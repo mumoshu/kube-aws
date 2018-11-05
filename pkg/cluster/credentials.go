@@ -6,12 +6,12 @@ import (
 	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 )
 
-func InitCredentials(sess *session.Session, cfg *Config, opts clusterapi.StackTemplateOptions) (*credential.CompactAssets, error) {
+func LoadCredentials(sess *session.Session, cfg *Config, opts clusterapi.StackTemplateOptions) (*credential.CompactAssets, error) {
 	s := &Session{Session: sess}
-	return s.InitCredentials(cfg, opts)
+	return s.LoadCredentials(cfg, opts)
 }
 
-func (s *Session) InitCredentials(cfg *Config, opts clusterapi.StackTemplateOptions) (*credential.CompactAssets, error) {
+func (s *Session) LoadCredentials(cfg *Config, opts clusterapi.StackTemplateOptions) (*credential.CompactAssets, error) {
 	if cfg.AssetsEncryptionEnabled() {
 		kmsConfig := credential.NewKMSConfig(cfg.KMSKeyARN, s.ProvidedEncryptService, s.Session)
 		compactAssets, err := credential.ReadOrCreateCompactAssets(opts.AssetsDir, cfg.ManageCertificates, cfg.Experimental.TLSBootstrap.Enabled, cfg.Experimental.KIAMSupport.Enabled, kmsConfig)
@@ -30,8 +30,8 @@ func (s *Session) InitCredentials(cfg *Config, opts clusterapi.StackTemplateOpti
 	}
 }
 
-func NewCredentialRenderer(c *Config) *credential.Renderer {
-	r := &credential.Renderer{
+func NewCredentialGenerator(c *Config) *credential.Generator {
+	r := &credential.Generator{
 		TLSCADurationDays:         c.TLSCADurationDays,
 		TLSCertDurationDays:       c.TLSCertDurationDays,
 		TLSBootstrapEnabled:       c.Experimental.TLSBootstrap.Enabled,
@@ -43,4 +43,14 @@ func NewCredentialRenderer(c *Config) *credential.Renderer {
 	}
 
 	return r
+}
+
+func GenerateAssetsOnDisk(sess *session.Session, c *Config, dir string, opts credential.GeneratorOptions) (*credential.RawAssetsOnDisk, error) {
+	s := &Session{Session: sess}
+	return s.GenerateAssetsOnDisk(c, dir, opts)
+}
+
+func (s *Session) GenerateAssetsOnDisk(c *Config, dir string, opts credential.GeneratorOptions) (*credential.RawAssetsOnDisk, error) {
+	r := NewCredentialGenerator(c)
+	return r.GenerateAssetsOnDisk(dir, opts)
 }

@@ -4,10 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"errors"
-
 	"github.com/kubernetes-incubator/kube-aws/cfnresource"
-	"github.com/kubernetes-incubator/kube-aws/credential"
 	"github.com/kubernetes-incubator/kube-aws/logger"
 	"github.com/kubernetes-incubator/kube-aws/naming"
 	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
@@ -24,7 +21,6 @@ type NodePoolConfig struct {
 	MainClusterSettings
 	// APIEndpoint is the k8s api endpoint to which worker nodes in this node pool communicate
 	APIEndpoint            derived.APIEndpoint
-	ProvidedEncryptService credential.KMSEncryptionService
 	clusterapi.UnknownKeys `yaml:",inline"`
 }
 
@@ -75,6 +71,9 @@ func (c NodePoolConfig) NodeLabels() clusterapi.NodeLabels {
 
 func (c NodePoolConfig) FeatureGates() clusterapi.FeatureGates {
 	gates := c.NodeSettings.FeatureGates
+	if gates == nil {
+		gates = clusterapi.FeatureGates{}
+	}
 	if c.Gpu.Nvidia.IsEnabledOn(c.InstanceType) {
 		gates["Accelerators"] = "true"
 	}
@@ -95,29 +94,8 @@ func (c NodePoolConfig) WorkerDeploymentSettings() NodePoolDeploymentSettings {
 	}
 }
 
-func (c NodePoolConfig) ValidateInputs() error {
-	if err := c.DeploymentSettings.ValidateInputs(c.NodePoolName); err != nil {
-		return err
-	}
-
-	if err := c.WorkerNodePool.ValidateInputs(); err != nil {
-		return err
-	}
-
-	if len(c.Subnets) > 1 && c.Autoscaling.ClusterAutoscaler.Enabled {
-		return errors.New("cluster-autoscaler can't be enabled for a node pool with 2 or more subnets because allowing so" +
-			"results in unreliability while scaling nodes out. ")
-	}
-
-	return nil
-}
-
-func (c NodePoolConfig) validate() error {
+func (c NodePoolConfig) Validate() error {
 	if _, err := c.KubeClusterSettings.Validate(); err != nil {
-		return err
-	}
-
-	if err := c.WorkerNodePool.Validate(c.Experimental); err != nil {
 		return err
 	}
 

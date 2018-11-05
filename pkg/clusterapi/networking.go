@@ -1,8 +1,8 @@
 package clusterapi
 
 type Networking struct {
-	AmazonVPC   AmazonVPC   `yaml:"amazonVPC"`
-	SelfHosting SelfHosting `yaml:"selfHosting"`
+	AmazonVPC   AmazonVPC   `yaml:"amazonVPC,omitempty"`
+	SelfHosting SelfHosting `yaml:"selfHosting,omitempty"`
 }
 
 type SelfHosting struct {

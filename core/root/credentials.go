@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-func RenderCredentials(configPath string, renderCredentialsOpts credential.CredentialsOptions) error {
+func RenderCredentials(configPath string, renderCredentialsOpts credential.GeneratorOptions) error {
 	opts := NewOptions(false, false)
 	cluster, err := CompileClusterFromFile(configPath, opts, renderCredentialsOpts.AwsDebug)
 	if err != nil {
@@ -23,7 +23,7 @@ func RenderCredentials(configPath string, renderCredentialsOpts credential.Crede
 		return err
 	}
 
-	if _, err = cluster.NewAssetsOnDisk(defaults.AssetsDir, renderCredentialsOpts); err != nil {
+	if _, err = cluster.GenerateAssetsOnDisk(defaults.AssetsDir, renderCredentialsOpts); err != nil {
 		return err
 	}
 

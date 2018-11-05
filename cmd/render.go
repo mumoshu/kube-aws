@@ -27,7 +27,7 @@ var (
 		SilenceUsage: true,
 	}
 
-	renderCredentialsOpts = credential.CredentialsOptions{}
+	renderCredentialsOpts = credential.GeneratorOptions{}
 
 	cmdRenderStack = &cobra.Command{
 		Use:          "stack",

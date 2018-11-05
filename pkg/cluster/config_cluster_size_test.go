@@ -1,7 +1,7 @@
 package cluster
 
 import (
-	"fmt"
+	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 	"strings"
 	"testing"
 )
@@ -80,14 +80,6 @@ func TestASGsMinInServiceConfigured(t *testing.T) {
 	checkControllerASGs(nil, &configuredMin, &configuredMax, &configuredMinInService, 5, 10, 7, "", t)
 }
 
-const testConfig = minimalConfigYaml + `
-subnets:
-  - availabilityZone: ap-northeast-1a
-    instanceCIDR: 10.0.1.0/24
-  - availabilityZone: ap-northeast-1c
-    instanceCIDR: 10.0.2.0/24
-`
-
 func checkControllerASGs(configuredCount *int, configuredMin *int, configuredMax *int, configuredMinInstances *int,
 	expectedMin int, expectedMax int, expectedMinInstances int, expectedError string, t *testing.T) {
 	checkControllerASG(configuredCount, configuredMin, configuredMax, configuredMinInstances,
@@ -96,63 +88,36 @@ func checkControllerASGs(configuredCount *int, configuredMin *int, configuredMax
 
 func checkControllerASG(configuredCount *int, configuredMin *int, configuredMax *int, configuredMinInstances *int,
 	expectedMin int, expectedMax int, expectedMinInstances int, expectedError string, t *testing.T) {
-	config := testConfig
 
-	countConfig := ""
+	config := clusterapi.NewDefaultController()
+
+	config.AutoScalingGroup.MinSize = configuredMin
+	config.AutoScalingGroup.RollingUpdateMinInstancesInService = configuredMinInstances
+
 	if configuredCount != nil {
-		countConfig = fmt.Sprintf("  count: %d\n", *configuredCount)
-	}
-	asgConfig := buildASGConfig(configuredMin, configuredMax, configuredMinInstances)
-	concatConfig := countConfig + asgConfig
-	if concatConfig != "" {
-		// empty `controller` traps go-yaml to override the whole Controller with a zero-value, which is not what we expect
-		config += "controller:\n" + concatConfig
-	}
-
-	cluster, err := ClusterFromBytes([]byte(config))
-	if err != nil {
-		if expectedError == "" || !strings.Contains(err.Error(), expectedError) {
-			t.Errorf("Failed to validate cluster with controller config %s: %v", config, err)
-		}
-	} else {
-		if expectedError != "" {
-			t.Errorf("expected error \"%s\" not occurred", expectedError)
-			t.FailNow()
-		}
-
-		config, err := cluster.Config()
-		if err != nil {
-			t.Errorf("Failed to create cluster config: %v", err)
-		} else {
-			if config.MinControllerCount() != expectedMin {
-				t.Errorf("Controller ASG min count did not match the expected value: actual value of %d != expected value of %d",
-					config.MinControllerCount(), expectedMin)
-			}
-			if config.MaxControllerCount() != expectedMax {
-				t.Errorf("Controller ASG max count did not match the expected value: actual value of %d != expected value of %d",
-					config.MaxControllerCount(), expectedMax)
-			}
-			if config.ControllerRollingUpdateMinInstancesInService() != expectedMinInstances {
-				t.Errorf("Controller ASG rolling update min instances count did not match the expected value: actual value of %d != expected value of %d",
-					config.ControllerRollingUpdateMinInstancesInService(), expectedMinInstances)
-			}
-		}
-	}
-}
-
-func buildASGConfig(configuredMin *int, configuredMax *int, configuredMinInstances *int) string {
-	asg := ""
-	if configuredMin != nil {
-		asg += fmt.Sprintf("    minSize: %d\n", *configuredMin)
+		config.Count = *configuredCount
 	}
 	if configuredMax != nil {
-		asg += fmt.Sprintf("    maxSize: %d\n", *configuredMax)
+		config.AutoScalingGroup.MaxSize = *configuredMax
 	}
-	if configuredMinInstances != nil {
-		asg += fmt.Sprintf("    rollingUpdateMinInstancesInService: %d\n", *configuredMinInstances)
+
+	if err := config.Validate(); err != nil {
+		if expectedError == "" || !strings.Contains(err.Error(), expectedError) {
+			t.Errorf("unexpected error: expected \"%v\", got \"%v\": %v", expectedError, err, config)
+			t.FailNow()
+		}
+	} else {
+		if config.MinControllerCount() != expectedMin {
+			t.Errorf("Controller ASG min count did not match the expected value: actual value of %d != expected value of %d",
+				config.MinControllerCount(), expectedMin)
+		}
+		if config.MaxControllerCount() != expectedMax {
+			t.Errorf("Controller ASG max count did not match the expected value: actual value of %d != expected value of %d",
+				config.MaxControllerCount(), expectedMax)
+		}
+		if config.ControllerRollingUpdateMinInstancesInService() != expectedMinInstances {
+			t.Errorf("Controller ASG rolling update min instances count did not match the expected value: actual value of %d != expected value of %d",
+				config.ControllerRollingUpdateMinInstancesInService(), expectedMinInstances)
+		}
 	}
-	if asg != "" {
-		return "  autoScalingGroup:\n" + asg
-	}
-	return ""
 }

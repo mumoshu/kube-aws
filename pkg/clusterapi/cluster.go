@@ -250,9 +250,7 @@ func NewDefaultCluster() *Cluster {
 			WorkerSecurityGroupIds: []string{},
 			WorkerTenancy:          "default",
 		},
-		ControllerSettings: ControllerSettings{
-			Controller: NewDefaultController(),
-		},
+		Controller: NewDefaultController(),
 		EtcdSettings: EtcdSettings{
 			Etcd: NewDefaultEtcd(),
 		},
@@ -504,11 +502,6 @@ type DefaultWorkerSettings struct {
 	WorkerTopologyPrivate  bool     `yaml:"workerTopologyPrivate,omitempty"`
 }
 
-// Part of configuration which is specific to controller nodes
-type ControllerSettings struct {
-	Controller `yaml:"controller,omitempty"`
-}
-
 // Part of configuration which is specific to etcd nodes
 type EtcdSettings struct {
 	Etcd `yaml:"etcd,omitempty"`
@@ -519,7 +512,7 @@ type Cluster struct {
 	KubeClusterSettings   `yaml:",inline"`
 	DeploymentSettings    `yaml:",inline"`
 	DefaultWorkerSettings `yaml:",inline"`
-	ControllerSettings    `yaml:",inline"`
+	Controller            Controller `yaml:"controller,omitempty"`
 	EtcdSettings          `yaml:",inline"`
 	AdminAPIEndpointName  string `yaml:"adminAPIEndpointName,omitempty"`
 	RecordSetTTL          int    `yaml:"recordSetTTL,omitempty"`
@@ -575,27 +568,6 @@ func (c DeploymentSettings) ApiServerLeaseEndpointReconciler() (bool, error) {
 	}
 	version, _ := semver.NewVersion(c.K8sVer) // already validated in Validate()
 	return constraint.Check(version), nil
-}
-
-func (c ControllerSettings) MinControllerCount() int {
-	if c.Controller.AutoScalingGroup.MinSize == nil {
-		return c.Controller.Count
-	}
-	return *c.Controller.AutoScalingGroup.MinSize
-}
-
-func (c ControllerSettings) MaxControllerCount() int {
-	if c.Controller.AutoScalingGroup.MaxSize == 0 {
-		return c.Controller.Count
-	}
-	return c.Controller.AutoScalingGroup.MaxSize
-}
-
-func (c ControllerSettings) ControllerRollingUpdateMinInstancesInService() int {
-	if c.AutoScalingGroup.RollingUpdateMinInstancesInService == nil {
-		return c.MaxControllerCount() - 1
-	}
-	return *c.AutoScalingGroup.RollingUpdateMinInstancesInService
 }
 
 // Required by kubelet to use the consistent network plugin with the base cluster
@@ -684,7 +656,7 @@ func (c Cluster) ClusterAutoscalerSupportEnabled() bool {
 }
 
 func (c Cluster) NodeLabels() NodeLabels {
-	labels := c.NodeSettings.NodeLabels
+	labels := c.Controller.NodeLabels
 	if c.ClusterAutoscalerSupportEnabled() {
 		labels["kube-aws.coreos.com/cluster-autoscaler-supported"] = "true"
 	}
@@ -745,7 +717,7 @@ func (c Cluster) validate(cpStackName string) error {
 		return fmt.Errorf("dnsServiceIp conflicts with kubernetesServiceIp (%s)", dnsServiceIPAddr)
 	}
 
-	if err := c.ControllerSettings.Validate(); err != nil {
+	if err := c.Controller.Validate(); err != nil {
 		return err
 	}
 
@@ -781,6 +753,13 @@ func (c Cluster) validate(cpStackName string) error {
 	} else {
 		if e := cfnresource.ValidateUnstableRoleNameLength(c.ClusterName, naming.FromStackToCfnResource(cpStackName), c.Controller.IAMConfig.Role.Name, c.Region.String()); e != nil {
 			return e
+		}
+	}
+
+	for _, w := range c.Worker.NodePools {
+		// Validate whole the inputs
+		if err := w.Validate(c.Experimental); err != nil {
+			return err
 		}
 	}
 
@@ -840,40 +819,6 @@ func (c DefaultWorkerSettings) Validate() error {
 		if c.WorkerRootVolumeType != "standard" && c.WorkerRootVolumeType != "gp2" {
 			return fmt.Errorf("invalid workerRootVolumeType: %s", c.WorkerRootVolumeType)
 		}
-	}
-
-	return nil
-}
-
-func (c ControllerSettings) Validate() error {
-	controller := c.Controller
-	rootVolume := controller.RootVolume
-
-	if rootVolume.Type == "io1" {
-		if rootVolume.IOPS < 100 || rootVolume.IOPS > 20000 {
-			return fmt.Errorf("invalid controller.rootVolume.iops: %d", rootVolume.IOPS)
-		}
-	} else {
-		if rootVolume.IOPS != 0 {
-			return fmt.Errorf("invalid controller.rootVolume.iops for type \"%s\": %d", rootVolume.Type, rootVolume.IOPS)
-		}
-
-		if rootVolume.Type != "standard" && rootVolume.Type != "gp2" {
-			return fmt.Errorf("invalid controller.rootVolume.type: %s in %+v", rootVolume.Type, c)
-		}
-	}
-
-	if controller.Count < 0 {
-		return fmt.Errorf("`controller.count` must be zero or greater if specified or otherwrise omitted, but was: %d", controller.Count)
-	}
-	// one is the default Controller.Count
-	asg := c.AutoScalingGroup
-	if controller.Count != DefaultControllerCount && (asg.MinSize != nil && *asg.MinSize != 0 || asg.MaxSize != 0) {
-		return errors.New("`controller.autoScalingGroup.minSize` and `controller.autoScalingGroup.maxSize` can only be specified without `controller.count`")
-	}
-
-	if err := controller.Validate(); err != nil {
-		return err
 	}
 
 	return nil

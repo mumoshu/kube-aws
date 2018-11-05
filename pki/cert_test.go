@@ -1,8 +1,6 @@
 package pki
 
 import (
-	"crypto/rsa"
-	"crypto/x509"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"net"
@@ -50,8 +48,8 @@ func TestCertificateDoesNOTContainIPAddress(t *testing.T) {
 
 func TestCertificatesFromBytes(t *testing.T) {
 
-	cert1 := pki.EncodeCertificatePEM(getSelfSignedCert(t, "test CN", "ABC organization"))
-	cert2 := pki.EncodeCertificatePEM(getSelfSignedCert(t, "test 2 CN", "XYZ organization"))
+	cert1 := EncodeCertificatePEM(getSelfSignedCert(t, "test CN", "ABC organization"))
+	cert2 := EncodeCertificatePEM(getSelfSignedCert(t, "test 2 CN", "XYZ organization"))
 	bundle := append(cert1[:], cert2[:]...)
 	certs, err := CertificatesFromBytes(bundle)
 	require.NoError(t, err)
@@ -90,24 +88,4 @@ func TestCertificateFromBytesMissingFromBundle(t *testing.T) {
 
 	_, ok := certs.GetBySubjectCommonNamePattern("three")
 	assert.False(t, ok)
-}
-
-// --- helper functions ---
-
-func getPrivateKey(t *testing.T) *rsa.PrivateKey {
-
-	key, err := NewPrivateKey()
-	require.NoError(t, err)
-	return key
-}
-
-func getSelfSignedCert(t *testing.T, commonName, organization string) *x509.Certificate {
-
-	key := getPrivateKey(t)
-	cfg := CACertConfig{Duration: Duration365d, CommonName: commonName, Organization: organization}
-
-	cert, err := NewSelfSignedCACertificate(cfg, key)
-	require.NoError(t, err)
-
-	return cert
 }

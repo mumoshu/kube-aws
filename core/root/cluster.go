@@ -33,7 +33,7 @@ const (
 	REMOTE_STACK_TEMPLATE_FILENAME = "stack.json"
 )
 
-func (cl aggregatedCluster) Export() error {
+func (cl Cluster) Export() error {
 	assets, err := cl.Assets()
 
 	if err != nil {
@@ -57,7 +57,7 @@ func (cl aggregatedCluster) Export() error {
 	return nil
 }
 
-func (cl aggregatedCluster) EstimateCost() ([]string, error) {
+func (cl Cluster) EstimateCost() ([]string, error) {
 
 	cfSvc := cloudformation.New(cl.session)
 	var urls []string
@@ -110,25 +110,7 @@ func (r *DiffResult) String() string {
 	return r.diff
 }
 
-type Cluster interface {
-	Apply(OperationTargets) error
-	Assets() (cfnstack.Assets, error)
-	LegacyCreate() error
-	Export() error
-	EstimateCost() ([]string, error)
-	Info() (*Info, error)
-	LegacyUpdate(OperationTargets) (string, error)
-	ValidateStack(...OperationTargets) (string, error)
-	ValidateTemplates() error
-	ControlPlane() *cluster.Stack
-	Etcd() *cluster.Stack
-	Network() *cluster.Stack
-	NodePools() []*cluster.Stack
-	RenderStackTemplateAsString() (string, error)
-	Diff(OperationTargets, int) ([]*DiffResult, error)
-}
-
-type aggregatedCluster struct {
+type Cluster struct {
 	controlPlane      *cluster.Stack
 	etcd              *cluster.Stack
 	network           *cluster.Stack
@@ -137,38 +119,39 @@ type aggregatedCluster struct {
 
 	opts     options
 	session  *session.Session
+	Session  *cluster.Session
 	extras   clusterextension.ClusterExtension
 	Cfg      *config.Config
 	loaded   bool
 	awsDebug bool
 }
 
-func LoadClusterFromFile(configPath string, opts options, awsDebug bool) (*aggregatedCluster, error) {
+func LoadClusterFromFile(configPath string, opts options, awsDebug bool) (*Cluster, error) {
 	cfg, err := config.ConfigFromFile(configPath)
 	if err != nil {
 		return nil, err
 	}
-	return InitClusterFromBytes(cfg, opts, awsDebug)
+	return CompileClusterFromConfig(cfg, opts, awsDebug)
 }
 
-func CompileClusterFromFile(configPath string, opts options, awsDebug bool) (*aggregatedCluster, error) {
+func CompileClusterFromFile(configPath string, opts options, awsDebug bool) (*Cluster, error) {
 	cfg, err := config.ConfigFromFile(configPath)
 	if err != nil {
 		return nil, err
 	}
-	return InitClusterFromBytes(cfg, opts, awsDebug)
+	return CompileClusterFromConfig(cfg, opts, awsDebug)
 }
 
-func InitClusterFromBytes(cfg *config.Config, opts options, awsDebug bool) (*aggregatedCluster, error) {
+func CompileClusterFromConfig(cfg *config.Config, opts options, awsDebug bool) (*Cluster, error) {
 	session, err := awsconn.NewSessionFromRegion(cfg.Region, awsDebug)
 	if err != nil {
 		return nil, fmt.Errorf("failed to establish aws session: %v", err)
 	}
 
-	return &aggregatedCluster{Cfg: cfg, opts: opts, awsDebug: awsDebug, extras: *cfg.Extras, session: session}, nil
+	return &Cluster{Cfg: cfg, opts: opts, awsDebug: awsDebug, extras: *cfg.Extras, session: session}, nil
 }
 
-func (cl *aggregatedCluster) ensureNestedStacksLoaded() error {
+func (cl *Cluster) ensureNestedStacksLoaded() error {
 	if cl.loaded {
 		return nil
 	}
@@ -192,7 +175,13 @@ func (cl *aggregatedCluster) ensureNestedStacksLoaded() error {
 
 	cfg := cl.Cfg.Config
 
-	assetsConfig, err := cluster.InitCredentials(cl.session, cfg, stackTemplateOpts)
+	if cl.Session == nil {
+		cl.Session = &cluster.Session{
+			Session: cl.session,
+		}
+	}
+
+	assetsConfig, err := cl.Session.LoadCredentials(cfg, stackTemplateOpts)
 	if err != nil {
 		return fmt.Errorf("failed initializing credentials: %v", err)
 	}
@@ -255,9 +244,8 @@ func (cl *aggregatedCluster) ensureNestedStacksLoaded() error {
 	return nil
 }
 
-func (cl *aggregatedCluster) NewAssetsOnDisk(dir string, opts credential.CredentialsOptions) (*credential.RawAssetsOnDisk, error) {
-	r := cluster.NewCredentialRenderer(cl.Cfg.Config)
-	a, err := r.NewAssetsOnDisk(dir, opts)
+func (cl *Cluster) GenerateAssetsOnDisk(dir string, opts credential.GeneratorOptions) (*credential.RawAssetsOnDisk, error) {
+	a, err := cluster.GenerateAssetsOnDisk(cl.session, cl.Cfg.Config, dir, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -271,27 +259,27 @@ func (cl *aggregatedCluster) NewAssetsOnDisk(dir string, opts credential.Credent
 	return a, nil
 }
 
-func (cl *aggregatedCluster) ControlPlane() *cluster.Stack {
+func (cl *Cluster) ControlPlane() *cluster.Stack {
 	return cl.controlPlane
 }
 
-func (cl *aggregatedCluster) Etcd() *cluster.Stack {
+func (cl *Cluster) Etcd() *cluster.Stack {
 	return cl.etcd
 }
 
-func (cl *aggregatedCluster) Network() *cluster.Stack {
+func (cl *Cluster) Network() *cluster.Stack {
 	return cl.network
 }
 
-func (cl *aggregatedCluster) s3URI() string {
+func (cl *Cluster) s3URI() string {
 	return cl.controlPlane.S3URI
 }
 
-func (cl *aggregatedCluster) NodePools() []*cluster.Stack {
+func (cl *Cluster) NodePools() []*cluster.Stack {
 	return cl.nodePools
 }
 
-func (cl *aggregatedCluster) allOperationTargets() OperationTargets {
+func (cl *Cluster) allOperationTargets() OperationTargets {
 	names := []string{}
 	for _, np := range cl.nodePools {
 		names = append(names, np.StackName)
@@ -299,7 +287,7 @@ func (cl *aggregatedCluster) allOperationTargets() OperationTargets {
 	return AllOperationTargetsWith(names)
 }
 
-func (cl *aggregatedCluster) operationTargetsFromUserInput(opts []OperationTargets) OperationTargets {
+func (cl *Cluster) operationTargetsFromUserInput(opts []OperationTargets) OperationTargets {
 	var targets OperationTargets
 	if len(opts) > 0 && !opts[0].IsAll() {
 		targets = OperationTargetsFromStringSlice(opts[0])
@@ -320,7 +308,7 @@ type diffSetting struct {
 	launchConfName string
 }
 
-func (cl *aggregatedCluster) Diff(opts OperationTargets, context int) ([]*DiffResult, error) {
+func (cl *Cluster) Diff(opts OperationTargets, context int) ([]*DiffResult, error) {
 	if err := cl.ensureNestedStacksLoaded(); err != nil {
 		return nil, err
 	}
@@ -451,12 +439,12 @@ func (cl *aggregatedCluster) Diff(opts OperationTargets, context int) ([]*DiffRe
 }
 
 // remove with legacy up command
-func (cl *aggregatedCluster) LegacyCreate() error {
+func (cl *Cluster) LegacyCreate() error {
 	cfSvc := cloudformation.New(cl.session)
 	return cl.create(cfSvc)
 }
 
-func (cl *aggregatedCluster) create(cfSvc *cloudformation.CloudFormation) error {
+func (cl *Cluster) create(cfSvc *cloudformation.CloudFormation) error {
 	if err := cl.ensureNestedStacksLoaded(); err != nil {
 		return err
 	}
@@ -490,7 +478,7 @@ func (cl *aggregatedCluster) create(cfSvc *cloudformation.CloudFormation) error 
 	return cl.stackProvisioner().CreateStackAtURLAndWait(cfSvc, stackTemplateURL)
 }
 
-func (cl *aggregatedCluster) Info() (*Info, error) {
+func (cl *Cluster) Info() (*Info, error) {
 	if err := cl.ensureNestedStacksLoaded(); err != nil {
 		return nil, err
 	}
@@ -499,7 +487,7 @@ func (cl *aggregatedCluster) Info() (*Info, error) {
 	return describer.Info()
 }
 
-func (cl *aggregatedCluster) generateAssets(targets OperationTargets) (cfnstack.Assets, error) {
+func (cl *Cluster) generateAssets(targets OperationTargets) (cfnstack.Assets, error) {
 	logger.Infof("generating assets for %s\n", targets.String())
 	var netAssets cfnstack.Assets
 	if targets.IncludeNetwork() {
@@ -587,12 +575,12 @@ func (cl *aggregatedCluster) generateAssets(targets OperationTargets) (cfnstack.
 	return nestedStacksAssets.Merge(rootStackAssets), nil
 }
 
-func (cl *aggregatedCluster) setNestedStackTemplateURL(template, stack string, url string) (string, error) {
+func (cl *Cluster) setNestedStackTemplateURL(template, stack string, url string) (string, error) {
 	path := fmt.Sprintf("Resources.%s.Properties.TemplateURL", naming.FromStackToCfnResource(stack))
 	return sjson.Set(template, path, url)
 }
 
-func (cl *aggregatedCluster) getCurrentRootStackTemplate() (string, error) {
+func (cl *Cluster) getCurrentRootStackTemplate() (string, error) {
 	cfnSvc := cloudformation.New(cl.session)
 	byRootStackName := &cloudformation.GetTemplateInput{StackName: aws.String(cl.stackName())}
 	output, err := cfnSvc.GetTemplate(byRootStackName)
@@ -602,7 +590,7 @@ func (cl *aggregatedCluster) getCurrentRootStackTemplate() (string, error) {
 	return aws.StringValue(output.TemplateBody), nil
 }
 
-func (cl *aggregatedCluster) uploadAssets(assets cfnstack.Assets) error {
+func (cl *Cluster) uploadAssets(assets cfnstack.Assets) error {
 	s3Svc := s3.New(cl.session)
 	err := cl.stackProvisioner().UploadAssets(s3Svc, assets)
 	if err != nil {
@@ -611,7 +599,7 @@ func (cl *aggregatedCluster) uploadAssets(assets cfnstack.Assets) error {
 	return nil
 }
 
-func (cl *aggregatedCluster) extractRootStackTemplateURL(assets cfnstack.Assets) (string, error) {
+func (cl *Cluster) extractRootStackTemplateURL(assets cfnstack.Assets) (string, error) {
 	asset, err := assets.FindAssetByStackAndFileName(cl.stackName(), REMOTE_STACK_TEMPLATE_FILENAME)
 
 	if err != nil {
@@ -621,24 +609,24 @@ func (cl *aggregatedCluster) extractRootStackTemplateURL(assets cfnstack.Assets)
 	return asset.URL()
 }
 
-func (cl *aggregatedCluster) Assets() (cfnstack.Assets, error) {
+func (cl *Cluster) Assets() (cfnstack.Assets, error) {
 	return cl.generateAssets(cl.allOperationTargets())
 }
 
-func (cl *aggregatedCluster) templatePath() string {
+func (cl *Cluster) templatePath() string {
 	return cl.opts.RootStackTemplateTmplFile
 }
 
-func (cl *aggregatedCluster) templateParams() TemplateParams {
+func (cl *Cluster) templateParams() TemplateParams {
 	params := newTemplateParams(cl)
 	return params
 }
 
-func (cl *aggregatedCluster) RenderStackTemplateAsString() (string, error) {
+func (cl *Cluster) RenderStackTemplateAsString() (string, error) {
 	return cl.renderTemplateAsString()
 }
 
-func (cl *aggregatedCluster) renderTemplateAsString() (string, error) {
+func (cl *Cluster) renderTemplateAsString() (string, error) {
 	template, err := jsontemplate.GetString(cl.templatePath(), cl.templateParams(), cl.opts.PrettyPrint)
 	if err != nil {
 		return "", err
@@ -646,7 +634,7 @@ func (cl *aggregatedCluster) renderTemplateAsString() (string, error) {
 	return template, nil
 }
 
-func (cl *aggregatedCluster) stackProvisioner() *cfnstack.Provisioner {
+func (cl *Cluster) stackProvisioner() *cfnstack.Provisioner {
 	stackPolicyBody := `{
   "Statement" : [
     {
@@ -668,11 +656,11 @@ func (cl *aggregatedCluster) stackProvisioner() *cfnstack.Provisioner {
 	)
 }
 
-func (cl aggregatedCluster) stackName() string {
+func (cl Cluster) stackName() string {
 	return cl.controlPlane.Config.ClusterName
 }
 
-func (cl aggregatedCluster) tags() map[string]string {
+func (cl Cluster) tags() map[string]string {
 	cptags := cl.controlPlane.Config.StackTags
 	if len(cptags) == 0 {
 		cptags = make(map[string]string, 1)
@@ -681,7 +669,7 @@ func (cl aggregatedCluster) tags() map[string]string {
 	return cptags
 }
 
-func (cl *aggregatedCluster) Apply(targets OperationTargets) error {
+func (cl *Cluster) Apply(targets OperationTargets) error {
 	cfSvc := cloudformation.New(cl.session)
 
 	exists, err := cfnstack.StackExists(cfSvc, cl.controlPlane.ClusterName)
@@ -704,12 +692,12 @@ func (cl *aggregatedCluster) Apply(targets OperationTargets) error {
 }
 
 // remove with legacy up command
-func (cl *aggregatedCluster) LegacyUpdate(targets OperationTargets) (string, error) {
+func (cl *Cluster) LegacyUpdate(targets OperationTargets) (string, error) {
 	cfSvc := cloudformation.New(cl.session)
 	return cl.update(cfSvc, targets)
 }
 
-func (cl *aggregatedCluster) update(cfSvc *cloudformation.CloudFormation, targets OperationTargets) (string, error) {
+func (cl *Cluster) update(cfSvc *cloudformation.CloudFormation, targets OperationTargets) (string, error) {
 
 	assets, err := cl.generateAssets(cl.operationTargetsFromUserInput([]OperationTargets{targets}))
 	if err != nil {
@@ -740,7 +728,7 @@ func (cl *aggregatedCluster) update(cfSvc *cloudformation.CloudFormation, target
 	return cl.stackProvisioner().UpdateStackAtURLAndWait(cfSvc, templateUrl)
 }
 
-func (cl *aggregatedCluster) ValidateTemplates() error {
+func (cl *Cluster) ValidateTemplates() error {
 	_, err := cl.renderTemplateAsString()
 	if err != nil {
 		return fmt.Errorf("failed to validate template: %v", err)
@@ -763,7 +751,7 @@ func (cl *aggregatedCluster) ValidateTemplates() error {
 }
 
 // ValidateStack validates all the CloudFormation stack templates already uploaded to S3
-func (cl *aggregatedCluster) ValidateStack(opts ...OperationTargets) (string, error) {
+func (cl *Cluster) ValidateStack(opts ...OperationTargets) (string, error) {
 	if err := cl.ensureNestedStacksLoaded(); err != nil {
 		return "", err
 	}
@@ -826,7 +814,7 @@ func (cl *aggregatedCluster) ValidateStack(opts ...OperationTargets) (string, er
 	return strings.Join(reports, "\n"), nil
 }
 
-func streamJournaldLogs(c *aggregatedCluster, q chan struct{}) error {
+func streamJournaldLogs(c *Cluster, q chan struct{}) error {
 	logger.Infof("Streaming filtered Journald logs for log group '%s'...\nNOTE: Due to high initial entropy, '.service' failures may occur during the early stages of booting.\n", c.controlPlane.ClusterName)
 	cwlSvc := cloudwatchlogs.New(c.session)
 	s := time.Now().Unix() * 1E3
@@ -869,7 +857,7 @@ func streamJournaldLogs(c *aggregatedCluster, q chan struct{}) error {
 }
 
 // streamStackEvents streams all the events from the root, the control-plane, and worker node pool stacks using StreamEventsNested
-func streamStackEvents(c *aggregatedCluster, cfSvc *cloudformation.CloudFormation, q chan struct{}) error {
+func streamStackEvents(c *Cluster, cfSvc *cloudformation.CloudFormation, q chan struct{}) error {
 	logger.Infof("Streaming CloudFormation events for the cluster '%s'...\n", c.controlPlane.ClusterName)
 	return c.stackProvisioner().StreamEventsNested(q, cfSvc, c.controlPlane.ClusterName, c.controlPlane.ClusterName, time.Now())
 }

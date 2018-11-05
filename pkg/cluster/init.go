@@ -25,14 +25,14 @@ func ClusterFromFile(filename string) (*clusterapi.Cluster, error) {
 func ClusterFromBytes(data []byte) (*clusterapi.Cluster, error) {
 	c := clusterapi.NewDefaultCluster()
 
-	if err := yaml.Unmarshal(data, c); err != nil {
-		return nil, fmt.Errorf("failed to parse cluster: %v", err)
+	if err := yaml.Unmarshal(data, &c); err != nil {
+		return c, fmt.Errorf("failed to parse cluster: %v", err)
 	}
 
 	c.HyperkubeImage.Tag = c.K8sVer
 
 	if err := c.Load(ControlPlaneStackName); err != nil {
-		return nil, err
+		return c, err
 	}
 
 	return c, nil

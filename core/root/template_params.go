@@ -9,7 +9,7 @@ import (
 
 // TemplateParams is the set of parameters exposed for templating cfn stack template for the root stack
 type TemplateParams struct {
-	cluster aggregatedCluster
+	cluster Cluster
 }
 
 func (p TemplateParams) ExtraCfnResources() map[string]interface{} {
@@ -32,7 +32,7 @@ func (p TemplateParams) KubeDnsMasq() clusterapi.KubeDns {
 	return p.cluster.controlPlane.Config.KubeDns
 }
 
-func newTemplateParams(c *aggregatedCluster) TemplateParams {
+func newTemplateParams(c *Cluster) TemplateParams {
 	return TemplateParams{
 		cluster: *c,
 	}

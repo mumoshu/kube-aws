@@ -3069,7 +3069,7 @@ write_files:
           {{- if .ApiServerLeaseEndpointReconciler }}
           - --endpoint-reconciler-type=lease
           {{- else }}
-          - --apiserver-count={{if .MinControllerCount}}{{ .MinControllerCount }}{{else}}{{ .ControllerCount }}{{end}}
+          - --apiserver-count={{if .MinControllerCount}}{{ .MinControllerCount }}{{else}}{{ .Controller.Count }}{{end}}
           {{- end }}
           - --bind-address=0.0.0.0
           - --etcd-servers=#ETCD_ENDPOINTS#

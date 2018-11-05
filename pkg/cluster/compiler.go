@@ -45,8 +45,8 @@ func Compile(cfgRef *clusterapi.Cluster, opts clusterapi.ClusterOptions) (*Confi
 
 	// Populate top-level subnets to model
 	if len(config.Subnets) > 0 {
-		if config.ControllerSettings.MinControllerCount() > 0 && len(config.ControllerSettings.Subnets) == 0 {
-			config.ControllerSettings.Subnets = config.Subnets
+		if config.Controller.MinControllerCount() > 0 && len(config.Controller.Subnets) == 0 {
+			config.Controller.Subnets = config.Subnets
 		}
 	}
 

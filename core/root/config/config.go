@@ -115,11 +115,6 @@ func ConfigFromBytes(data []byte, plugins []*clusterapi.Plugin) (*Config, error)
 			return nil, fmt.Errorf("invalid node pool at index %d: %v", i, err)
 		}
 
-		if np.Autoscaling.ClusterAutoscaler.Enabled && !cpConfig.Addons.ClusterAutoscaler.Enabled {
-			return nil, errors.New("Autoscaling with cluster-autoscaler can't be enabled for node pools because " +
-				"you didn't enabled the cluster-autoscaler addon. Enable it by turning on `addons.clusterAutoscaler.enabled`")
-		}
-
 		if err := failFastWhenUnknownKeysFound([]unknownKeyValidation{
 			{np, fmt.Sprintf("worker.nodePools[%d]", i)},
 			{np.AutoScalingGroup, fmt.Sprintf("worker.nodePools[%d].autoScalingGroup", i)},
@@ -179,23 +174,6 @@ func failFastWhenUnknownKeysFound(vs []unknownKeyValidation) error {
 	}
 	return nil
 }
-
-//func ConfigFromBytesWithStubs(data []byte, plugins []*clusterapi.Plugin, encryptService credential.KMSEncryptionService, cf cfnstack.CFInterrogator, ec cfnstack.EC2Interrogator) (*Config, error) {
-//	c, err := ConfigFromBytes(data, plugins)
-//	if err != nil {
-//		return nil, err
-//	}
-//	c.ProvidedEncryptService = encryptService
-//	c.ProvidedCFInterrogator = cf
-//	c.ProvidedEC2Interrogator = ec
-//
-//	// Uses the same encrypt service for node pools for consistency
-//	for _, p := range c.NodePools {
-//		p.ProvidedEncryptService = encryptService
-//	}
-//
-//	return c, nil
-//}
 
 func ConfigFromFile(configPath string) (*Config, error) {
 	data, err := ioutil.ReadFile(configPath)

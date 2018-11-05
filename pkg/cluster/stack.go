@@ -102,7 +102,7 @@ func (c *Stack) buildAssets() (cfnstack.Assets, error) {
 
 	stackTemplate, err := c.RenderStackTemplateAsString()
 	if err != nil {
-		return nil, fmt.Errorf("failed to render %s template: %v", c.StackName, err)
+		return nil, fmt.Errorf("failed to render \"%s\" stack template: %v", c.StackName, err)
 	}
 
 	logger.Debugf("Calling assets.Add on %s", STACK_TEMPLATE_FILENAME)

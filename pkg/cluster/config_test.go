@@ -1,9 +1,7 @@
 package cluster
 
 import (
-	"fmt"
 	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
-	"strings"
 	"testing"
 )
 
@@ -55,27 +53,18 @@ func NodePoolConfigFromBytes(data []byte) (*NodePoolConfig, error) {
 }
 
 func TestNodePoolRotateCerts(t *testing.T) {
-	cpconfig, _ := ConfigFromBytes([]byte(cluster_config))
-
-	npconfig, _ := NodePoolCompile(clusterapi.WorkerNodePool{}, cpconfig)
+	npconfig := NodePoolConfig{
+		WorkerNodePool: clusterapi.WorkerNodePool{
+			Kubelet: clusterapi.Kubelet{
+				RotateCerts: clusterapi.RotateCerts{
+					Enabled: true,
+				},
+			},
+		},
+	}
 
 	if !(npconfig.FeatureGates()["RotateKubeletClientCertificate"] == "true") {
 		t.Errorf("When RotateCerts is enabled, Feature Gate RotateKubeletClientCertificate should be automatically enabled too")
-	}
-}
-
-func TestKube2IamKiamClash(t *testing.T) {
-	config := `
-name: nodepool1
-kube2IamSupport:
-  enabled: true
-kiamSupport:
-  enabled: true
-`
-
-	_, err := ConfigFromBytes([]byte(cluster_config))
-	if err == nil || !strings.Contains(err.Error(), "not both") {
-		t.Errorf("expected config to cause error as kube2iam and kiam cannot be enabled together: %s\n%s", err, config)
 	}
 }
 
@@ -93,28 +82,6 @@ kmsKeyArn: "arn:aws:kms:us-west-1:xxxxxxxxx:key/xxxxxxxxxxxxxxxxxxx"
 `
 const minimalConfigYaml = externalDNSNameConfig + apiEndpointMinimalConfigYaml
 const singleAzConfigYaml = minimalConfigYaml + availabilityZoneConfig
-
-func TestRktConfig(t *testing.T) {
-	validChannels := []string{
-		"alpha",
-		"beta",
-		"stable",
-	}
-
-	conf := func(channel string) string {
-		return fmt.Sprintf(`containerRuntime: rkt
-releaseChannel: %s
-`, channel)
-	}
-
-	for _, channel := range validChannels {
-		confBody := singleAzConfigYaml + conf(channel)
-		_, err := ConfigFromBytes([]byte(confBody))
-		if err != nil {
-			t.Errorf("failed to parse config %s: %v", confBody, err)
-		}
-	}
-}
 
 func TestWithTrailingDot(t *testing.T) {
 	tests := [][]string{

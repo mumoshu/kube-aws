@@ -8,6 +8,7 @@ import (
 
 	"github.com/kubernetes-incubator/kube-aws/core/root"
 	"github.com/kubernetes-incubator/kube-aws/core/root/config"
+	"github.com/kubernetes-incubator/kube-aws/pkg/cluster"
 	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 	"github.com/kubernetes-incubator/kube-aws/plugin"
 	"github.com/kubernetes-incubator/kube-aws/test/helper"
@@ -270,7 +271,7 @@ spec:
 							Permissions: 0644,
 							Content:     "controller-bar",
 						}
-						a := cp.StackConfig.Controller.CustomFiles[0]
+						a := cp.Config.CustomFiles[0]
 						if !reflect.DeepEqual(e, a) {
 							t.Errorf("Unexpected controller custom file from plugin: expected=%v actual=%v", e, a)
 						}
@@ -281,7 +282,7 @@ spec:
 							Permissions: 0644,
 							Content:     "controller-baz",
 						}
-						a := cp.StackConfig.Controller.CustomFiles[1]
+						a := cp.Config.Controller.CustomFiles[1]
 						if !reflect.DeepEqual(e, a) {
 							t.Errorf("Unexpected controller custom file from plugin: expected=%v actual=%v", e, a)
 						}
@@ -294,7 +295,7 @@ spec:
 								Resources: []string{"*"},
 							},
 						}
-						a := cp.StackConfig.Controller.IAMConfig.Policy.Statements
+						a := cp.Config.Controller.IAMConfig.Policy.Statements
 						if !reflect.DeepEqual(e, a) {
 							t.Errorf("Unexpected controller iam policy statements from plugin: expected=%v actual=%v", e, a)
 						}
@@ -306,7 +307,7 @@ spec:
 							Permissions: 0644,
 							Content:     "etcd-bar",
 						}
-						a := etcd.StackConfig.Etcd.CustomFiles[0]
+						a := etcd.Config.Etcd.CustomFiles[0]
 						if !reflect.DeepEqual(e, a) {
 							t.Errorf("Unexpected etcd custom file from plugin: expected=%v actual=%v", e, a)
 						}
@@ -317,7 +318,7 @@ spec:
 							Permissions: 0644,
 							Content:     "etcd-baz",
 						}
-						a := etcd.StackConfig.Etcd.CustomFiles[1]
+						a := etcd.Config.Etcd.CustomFiles[1]
 						if !reflect.DeepEqual(e, a) {
 							t.Errorf("Unexpected etcd custom file from plugin: expected=%v actual=%v", e, a)
 						}
@@ -330,7 +331,7 @@ spec:
 								Resources: []string{"*"},
 							},
 						}
-						a := etcd.StackConfig.Etcd.IAMConfig.Policy.Statements
+						a := etcd.Config.Etcd.IAMConfig.Policy.Statements
 						if !reflect.DeepEqual(e, a) {
 							t.Errorf("Unexpected etcd iam policy statements from plugin: expected=%v actual=%v", e, a)
 						}
@@ -342,7 +343,7 @@ spec:
 							Permissions: 0644,
 							Content:     "worker-bar",
 						}
-						a := np.StackConfig.CustomFiles[0]
+						a := np.NodePoolConfig.CustomFiles[0]
 						if !reflect.DeepEqual(e, a) {
 							t.Errorf("Unexpected worker custom file from plugin: expected=%v actual=%v", e, a)
 						}
@@ -353,7 +354,7 @@ spec:
 							Permissions: 0644,
 							Content:     "worker-baz",
 						}
-						a := np.StackConfig.CustomFiles[1]
+						a := np.NodePoolConfig.CustomFiles[1]
 						if !reflect.DeepEqual(e, a) {
 							t.Errorf("Unexpected worker custom file from plugin: expected=%v actual=%v", e, a)
 						}
@@ -366,24 +367,24 @@ spec:
 								Resources: []string{"*"},
 							},
 						}
-						a := np.StackConfig.IAMConfig.Policy.Statements
+						a := np.NodePoolConfig.IAMConfig.Policy.Statements
 						if !reflect.DeepEqual(e, a) {
 							t.Errorf("Unexpected worker iam policy statements from plugin: expected=%v actual=%v", e, a)
 						}
 					}
 
 					// A kube-aws plugin can inject systemd units
-					controllerUserdataS3Part := cp.UserDataController.Parts[clusterapi.USERDATA_S3].Asset.Content
+					controllerUserdataS3Part := cp.UserData["Controller"].Parts[clusterapi.USERDATA_S3].Asset.Content
 					if !strings.Contains(controllerUserdataS3Part, "save-queue-name.service") {
 						t.Errorf("Invalid controller userdata: %v", controllerUserdataS3Part)
 					}
 
-					etcdUserdataS3Part := etcd.UserDataEtcd.Parts[clusterapi.USERDATA_S3].Asset.Content
+					etcdUserdataS3Part := etcd.UserData["Etcd"].Parts[clusterapi.USERDATA_S3].Asset.Content
 					if !strings.Contains(etcdUserdataS3Part, "save-queue-name.service") {
 						t.Errorf("Invalid etcd userdata: %v", etcdUserdataS3Part)
 					}
 
-					workerUserdataS3Part := np.UserDataWorker.Parts[clusterapi.USERDATA_S3].Asset.Content
+					workerUserdataS3Part := np.UserData["Worker"].Parts[clusterapi.USERDATA_S3].Asset.Content
 					if !strings.Contains(workerUserdataS3Part, "save-queue-name.service") {
 						t.Errorf("Invalid worker userdata: %v", workerUserdataS3Part)
 					}
@@ -478,7 +479,7 @@ spec:
 				}
 
 				configBytes := validCase.clusterYaml
-				providedConfig, err := config.ConfigFromBytesWithStubs([]byte(configBytes), plugins, helper.DummyEncryptService{}, helper.DummyCFInterrogator{}, helper.DummyEC2Interrogator{})
+				providedConfig, err := config.ConfigFromBytes([]byte(configBytes), plugins)
 				if err != nil {
 					t.Errorf("failed to parse config %s: %v", configBytes, err)
 					t.FailNow()
@@ -502,20 +503,25 @@ spec:
 					stackTemplateOptions.EtcdStackTemplateTmplFile = "../../core/etcd/config/templates/stack-template.json"
 					stackTemplateOptions.NetworkStackTemplateTmplFile = "../../core/network/config/templates/stack-template.json"
 
-					cluster, err := root.InitClusterFromBytes(providedConfig, stackTemplateOptions, false)
+					cl, err := root.CompileClusterFromConfig(providedConfig, stackTemplateOptions, false)
 					if err != nil {
 						t.Errorf("failed to create cluster driver : %v", err)
 						t.FailNow()
 					}
+					cl.Session = &cluster.Session{
+						ProvidedEncryptService:  helper.DummyEncryptService{},
+						ProvidedCFInterrogator:  helper.DummyCFInterrogator{},
+						ProvidedEC2Interrogator: helper.DummyEC2Interrogator{},
+					}
 
 					t.Run("AssertCluster", func(t *testing.T) {
 						for _, assertion := range validCase.assertCluster {
-							assertion(cluster, t)
+							assertion(cl, t)
 						}
 					})
 
 					t.Run("ValidateTemplates", func(t *testing.T) {
-						if err := cluster.ValidateTemplates(); err != nil {
+						if err := cl.ValidateTemplates(); err != nil {
 							t.Errorf("failed to render stack template: %v", err)
 						}
 					})
@@ -530,7 +536,7 @@ spec:
 								t.FailNow()
 							}
 
-							report, err := cluster.ValidateStack()
+							report, err := cl.ValidateStack()
 
 							if err != nil {
 								t.Errorf("failed to validate stack: %s %v", report, err)

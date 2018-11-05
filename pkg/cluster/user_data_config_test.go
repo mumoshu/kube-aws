@@ -10,10 +10,10 @@ import (
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/coreos/coreos-cloudinit/config/validate"
 	"github.com/kubernetes-incubator/kube-aws/builtin"
-	"github.com/kubernetes-incubator/kube-aws/credential"
 	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 	"github.com/kubernetes-incubator/kube-aws/test/helper"
 	"github.com/stretchr/testify/assert"
+	"path/filepath"
 )
 
 var numEncryption int
@@ -54,45 +54,7 @@ func TestDummyEncryptService(t *testing.T) {
 }
 
 func TestCloudConfigTemplating(t *testing.T) {
-	cfg, err := ConfigFromBytes([]byte(singleAzConfigYaml))
-	if err != nil {
-		t.Fatalf("Unable to load cluster config: %v", err)
-	}
-
-	opts := credential.CredentialsOptions{
-		GenerateCA: true,
-		KIAM:       true,
-	}
-
-	var compactAssets *credential.CompactAssets
-
-	cachedEncryptor := credential.CachedEncryptor{
-		KMSEncryptionService: KMSEncryptionService{kmsKeyARN: cfg.KMSKeyARN, kmsSvc: &dummyEncryptService{}},
-	}
-
-	helper.WithTempDir(func(dir string) {
-		_, err = cfg.NewAssetsOnDisk(dir, opts)
-		if err != nil {
-			t.Fatalf("Error generating default assets: %v", err)
-		}
-
-		encryptedAssets, err := ReadOrEncryptAssets(dir, true, true, true, cachedEncryptor)
-		if err != nil {
-			t.Fatalf("failed to compress assets: %v", err)
-		}
-
-		compactAssets, err = encryptedAssets.Compact()
-		if err != nil {
-			t.Fatalf("failed to compress assets: %v", err)
-		}
-	})
-
-	if compactAssets == nil {
-		t.Fatal("compactAssets is unexpectedly nil")
-		t.FailNow()
-	}
-
-	cfg.AssetsConfig = compactAssets
+	var cfg *Stack
 
 	for _, cloudTemplate := range []struct {
 		Name     string
@@ -108,10 +70,32 @@ func TestCloudConfigTemplating(t *testing.T) {
 		tmpfile.Close()
 		defer os.Remove(tmpfile.Name())
 
-		udata, err := clusterapi.NewUserDataFromTemplateFile(tmpfile.Name(), cfg)
-		if !assert.NoError(t, err, "Error loading template %s", cloudTemplate.Name) {
+		fname := tmpfile.Name()
+
+		if fname == "" {
+			t.Errorf("[bug] expected file name: %s", fname)
+			t.FailNow()
+		}
+
+		pwd, err := os.Getwd()
+		if err != nil {
+			t.Errorf("%v", err)
+			t.FailNow()
+		}
+		helper.WithTempDir(func(dir string) {
+			opts := clusterapi.StackTemplateOptions{
+				AssetsDir:             dir,
+				ControllerTmplFile:    fname,
+				StackTemplateTmplFile: filepath.Join(pwd, "../../builtin/files/stack-templates/control-plane.json.tmpl"),
+			}
+			cfg, err = yamlToStackForTesting(singleAzConfigYaml, opts)
+		})
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
 			continue
 		}
+
+		udata := cfg.UserData["Controller"]
 		content, err := udata.Parts[clusterapi.USERDATA_S3].Template()
 		if !assert.NoError(t, err, "Can't render template %s", cloudTemplate.Name) {
 			continue

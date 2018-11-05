@@ -3,6 +3,7 @@ package clusterapi
 import (
 	"fmt"
 
+	"errors"
 	"github.com/kubernetes-incubator/kube-aws/logger"
 )
 
@@ -143,6 +144,15 @@ func (c WorkerNodePool) validate(experimentalGpuSupportEnabled bool) error {
 		return err
 	}
 
+	if err := c.DeploymentSettings.ValidateInputs(c.NodePoolName); err != nil {
+		return err
+	}
+
+	if len(c.Subnets) > 1 && c.Autoscaling.ClusterAutoscaler.Enabled {
+		return errors.New("cluster-autoscaler can't be enabled for a node pool with 2 or more subnets because allowing so" +
+			"results in unreliability while scaling nodes out. ")
+	}
+
 	return nil
 }
 
@@ -170,15 +180,8 @@ func (c WorkerNodePool) RollingUpdateMinInstancesInService() int {
 	return *c.AutoScalingGroup.RollingUpdateMinInstancesInService
 }
 
-func (c WorkerNodePool) ValidateInputs() error {
-	return nil
-}
-
 func (c WorkerNodePool) Validate(experimental Experimental) error {
-	if err := c.validate(experimental.GpuSupport.Enabled); err != nil {
-		return err
-	}
-	return nil
+	return c.validate(experimental.GpuSupport.Enabled)
 }
 
 func (c WorkerNodePool) WithDefaultsFrom(main DefaultWorkerSettings) WorkerNodePool {

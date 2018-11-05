@@ -64,6 +64,31 @@ func (c Controller) SecurityGroupRefs() []string {
 }
 
 func (c Controller) Validate() error {
+	rootVolume := c.RootVolume
+
+	if rootVolume.Type == "io1" {
+		if rootVolume.IOPS < 100 || rootVolume.IOPS > 20000 {
+			return fmt.Errorf("invalid controller.rootVolume.iops: %d", rootVolume.IOPS)
+		}
+	} else {
+		if rootVolume.IOPS != 0 {
+			return fmt.Errorf("invalid controller.rootVolume.iops for type \"%s\": %d", rootVolume.Type, rootVolume.IOPS)
+		}
+
+		if rootVolume.Type != "standard" && rootVolume.Type != "gp2" {
+			return fmt.Errorf("invalid controller.rootVolume.type: %s in %+v", rootVolume.Type, c)
+		}
+	}
+
+	if c.Count < 0 {
+		return fmt.Errorf("`controller.count` must be zero or greater if specified or otherwrise omitted, but was: %d", c.Count)
+	}
+	// one is the default Controller.Count
+	asg := c.AutoScalingGroup
+	if c.Count != DefaultControllerCount && (asg.MinSize != nil && *asg.MinSize != 0 || asg.MaxSize != 0) {
+		return errors.New("`controller.autoScalingGroup.minSize` and `controller.autoScalingGroup.maxSize` can only be specified without `controller.count`")
+	}
+
 	if err := c.AutoScalingGroup.Validate(); err != nil {
 		return err
 	}
@@ -86,15 +111,36 @@ func (c Controller) Validate() error {
 }
 
 func (c Controller) InstanceProfileRoles() string {
-	return fmt.Sprintf(`"Roles": ["%s"]`, c.InstanceProfileRole())
+	return fmt.Sprintf(`"Roles": [%s]`, c.InstanceProfileRole())
 }
 
 func (c Controller) InstanceProfileRole() string {
 	if c.IAMConfig.Role.StrictName && c.IAMConfig.Role.Name != "" {
-		return c.IAMConfig.Role.Name
+		return fmt.Sprintf(`"%s"`, c.IAMConfig.Role.Name)
 	} else {
 		return `{"Ref":"IAMRoleController"}`
 	}
+}
+
+func (c Controller) MinControllerCount() int {
+	if c.AutoScalingGroup.MinSize == nil {
+		return c.Count
+	}
+	return *c.AutoScalingGroup.MinSize
+}
+
+func (c Controller) MaxControllerCount() int {
+	if c.AutoScalingGroup.MaxSize == 0 {
+		return c.Count
+	}
+	return c.AutoScalingGroup.MaxSize
+}
+
+func (c Controller) ControllerRollingUpdateMinInstancesInService() int {
+	if c.AutoScalingGroup.RollingUpdateMinInstancesInService == nil {
+		return c.MaxControllerCount() - 1
+	}
+	return *c.AutoScalingGroup.RollingUpdateMinInstancesInService
 }
 
 type ControllerElb struct {

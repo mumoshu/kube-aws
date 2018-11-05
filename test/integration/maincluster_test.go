@@ -9,16 +9,17 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kubernetes-incubator/kube-aws/builtin"
 	"github.com/kubernetes-incubator/kube-aws/cfnstack"
-	controlplane_config "github.com/kubernetes-incubator/kube-aws/core/controlplane/config"
 	"github.com/kubernetes-incubator/kube-aws/core/root"
 	"github.com/kubernetes-incubator/kube-aws/core/root/config"
+	"github.com/kubernetes-incubator/kube-aws/pkg/cluster"
 	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 	"github.com/kubernetes-incubator/kube-aws/test/helper"
 )
 
 type ConfigTester func(c *config.Config, t *testing.T)
-type ClusterTester func(c root.Cluster, t *testing.T)
+type ClusterTester func(c *root.Cluster, t *testing.T)
 
 // Integration testing with real AWS services including S3, KMS, CloudFormation
 func TestMainClusterConfig(t *testing.T) {
@@ -46,7 +47,7 @@ func TestMainClusterConfig(t *testing.T) {
 	hasDefaultEtcdSettings := func(c *config.Config, t *testing.T) {
 		subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
 		subnet1.Name = "Subnet0"
-		expected := controlplane_config.EtcdSettings{
+		expected := clusterapi.EtcdSettings{
 			Etcd: clusterapi.Etcd{
 				EC2Instance: clusterapi.EC2Instance{
 					Count:        1,
@@ -83,77 +84,77 @@ func TestMainClusterConfig(t *testing.T) {
 	}
 
 	hasDefaultExperimentalFeatures := func(c *config.Config, t *testing.T) {
-		expected := controlplane_config.Experimental{
-			Admission: controlplane_config.Admission{
-				PodSecurityPolicy: controlplane_config.PodSecurityPolicy{
+		expected := clusterapi.Experimental{
+			Admission: clusterapi.Admission{
+				PodSecurityPolicy: clusterapi.PodSecurityPolicy{
 					Enabled: false,
 				},
-				AlwaysPullImages: controlplane_config.AlwaysPullImages{
+				AlwaysPullImages: clusterapi.AlwaysPullImages{
 					Enabled: false,
 				},
-				DenyEscalatingExec: controlplane_config.DenyEscalatingExec{
+				DenyEscalatingExec: clusterapi.DenyEscalatingExec{
 					Enabled: false,
 				},
-				Priority: controlplane_config.Priority{
+				Priority: clusterapi.Priority{
 					Enabled: false,
 				},
-				MutatingAdmissionWebhook: controlplane_config.MutatingAdmissionWebhook{
+				MutatingAdmissionWebhook: clusterapi.MutatingAdmissionWebhook{
 					Enabled: false,
 				},
-				ValidatingAdmissionWebhook: controlplane_config.ValidatingAdmissionWebhook{
+				ValidatingAdmissionWebhook: clusterapi.ValidatingAdmissionWebhook{
 					Enabled: false,
 				},
-				PersistentVolumeClaimResize: controlplane_config.PersistentVolumeClaimResize{
+				PersistentVolumeClaimResize: clusterapi.PersistentVolumeClaimResize{
 					Enabled: false,
 				},
 			},
-			AuditLog: controlplane_config.AuditLog{
+			AuditLog: clusterapi.AuditLog{
 				Enabled:   false,
 				LogPath:   "/var/log/kube-apiserver-audit.log",
 				MaxAge:    30,
 				MaxBackup: 1,
 				MaxSize:   100,
 			},
-			Authentication: controlplane_config.Authentication{
-				Webhook: controlplane_config.Webhook{
+			Authentication: clusterapi.Authentication{
+				Webhook: clusterapi.Webhook{
 					Enabled:  false,
 					CacheTTL: "5m0s",
 					Config:   "",
 				},
 			},
-			AwsEnvironment: controlplane_config.AwsEnvironment{
+			AwsEnvironment: clusterapi.AwsEnvironment{
 				Enabled: false,
 			},
-			AwsNodeLabels: controlplane_config.AwsNodeLabels{
+			AwsNodeLabels: clusterapi.AwsNodeLabels{
 				Enabled: false,
 			},
 			ClusterAutoscalerSupport: clusterapi.ClusterAutoscalerSupport{
 				Enabled: true,
 				Options: map[string]string{},
 			},
-			TLSBootstrap: controlplane_config.TLSBootstrap{
+			TLSBootstrap: clusterapi.TLSBootstrap{
 				Enabled: false,
 			},
-			EphemeralImageStorage: controlplane_config.EphemeralImageStorage{
+			EphemeralImageStorage: clusterapi.EphemeralImageStorage{
 				Enabled:    false,
 				Disk:       "xvdb",
 				Filesystem: "xfs",
 			},
-			KIAMSupport: controlplane_config.KIAMSupport{
+			KIAMSupport: clusterapi.KIAMSupport{
 				Enabled:         false,
 				Image:           clusterapi.Image{Repo: "quay.io/uswitch/kiam", Tag: "v2.8", RktPullDocker: false},
 				SessionDuration: "15m",
-				ServerAddresses: controlplane_config.KIAMServerAddresses{ServerAddress: "localhost:443", AgentAddress: "kiam-server:443"},
+				ServerAddresses: clusterapi.KIAMServerAddresses{ServerAddress: "localhost:443", AgentAddress: "kiam-server:443"},
 			},
-			Kube2IamSupport: controlplane_config.Kube2IamSupport{
+			Kube2IamSupport: clusterapi.Kube2IamSupport{
 				Enabled: false,
 			},
-			GpuSupport: controlplane_config.GpuSupport{
+			GpuSupport: clusterapi.GpuSupport{
 				Enabled:      false,
 				Version:      "",
 				InstallImage: "shelmangroup/coreos-nvidia-driver-installer:latest",
 			},
-			LoadBalancer: controlplane_config.LoadBalancer{
+			LoadBalancer: clusterapi.LoadBalancer{
 				Enabled: false,
 			},
 			Oidc: clusterapi.Oidc{
@@ -371,7 +372,7 @@ func TestMainClusterConfig(t *testing.T) {
 		}
 	}
 
-	hasDefaultCluster := func(c root.Cluster, t *testing.T) {
+	hasDefaultCluster := func(c *root.Cluster, t *testing.T) {
 		assets, err := c.Assets()
 		if err != nil {
 			t.Errorf("failed to list assets: %v", err)
@@ -416,7 +417,7 @@ func TestMainClusterConfig(t *testing.T) {
 			stack := "control-plane"
 			file := "stack.json"
 			expected := clusterapi.Asset{
-				Content: string(controlplane_config.StackTemplateTemplate),
+				Content: builtin.String("stack-templates/control-plane.json.tmpl"),
 				AssetLocation: clusterapi.AssetLocation{
 					ID:     clusterapi.NewAssetID(stack, file),
 					Bucket: s3Bucket,
@@ -707,9 +708,9 @@ worker:
 				asgBasedNodePoolHasWaitSignalEnabled,
 			},
 			assertCluster: []ClusterTester{
-				func(c root.Cluster, t *testing.T) {
-					cp := c.ControlPlane().StackConfig.AMI
-					np := c.NodePools()[0].AMI
+				func(c *root.Cluster, t *testing.T) {
+					cp := c.ControlPlane().Config.AMI
+					np := c.NodePools()[0].NodePoolConfig.AMI
 
 					if cp == "" {
 						t.Error("the default AMI ID should not be empty but it was")
@@ -812,7 +813,7 @@ etcd:
 				func(c *config.Config, t *testing.T) {
 					subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
 					subnet1.Name = "Subnet0"
-					expected := controlplane_config.EtcdSettings{
+					expected := clusterapi.EtcdSettings{
 						Etcd: clusterapi.Etcd{
 							Cluster: clusterapi.EtcdCluster{
 								MemberIdentityProvider: "eip",
@@ -872,7 +873,7 @@ etcd:
 				func(c *config.Config, t *testing.T) {
 					subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
 					subnet1.Name = "Subnet0"
-					expected := controlplane_config.EtcdSettings{
+					expected := clusterapi.EtcdSettings{
 						Etcd: clusterapi.Etcd{
 							EC2Instance: clusterapi.EC2Instance{
 								Count:        1,
@@ -933,7 +934,7 @@ etcd:
 				func(c *config.Config, t *testing.T) {
 					subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
 					subnet1.Name = "Subnet0"
-					expected := controlplane_config.EtcdSettings{
+					expected := clusterapi.EtcdSettings{
 						Etcd: clusterapi.Etcd{
 							Cluster: clusterapi.EtcdCluster{
 								MemberIdentityProvider: "eni",
@@ -999,7 +1000,7 @@ etcd:
 				func(c *config.Config, t *testing.T) {
 					subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
 					subnet1.Name = "Subnet0"
-					expected := controlplane_config.EtcdSettings{
+					expected := clusterapi.EtcdSettings{
 						Etcd: clusterapi.Etcd{
 							Cluster: clusterapi.EtcdCluster{
 								MemberIdentityProvider: "eni",
@@ -1076,7 +1077,7 @@ etcd:
 				func(c *config.Config, t *testing.T) {
 					subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
 					subnet1.Name = "Subnet0"
-					expected := controlplane_config.EtcdSettings{
+					expected := clusterapi.EtcdSettings{
 						Etcd: clusterapi.Etcd{
 							Cluster: clusterapi.EtcdCluster{
 								MemberIdentityProvider: "eni",
@@ -1155,7 +1156,7 @@ etcd:
 					subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
 					subnet1.Name = "Subnet0"
 					manageRecordSets := false
-					expected := controlplane_config.EtcdSettings{
+					expected := clusterapi.EtcdSettings{
 						Etcd: clusterapi.Etcd{
 							Cluster: clusterapi.EtcdCluster{
 								ManageRecordSets:       &manageRecordSets,
@@ -1235,7 +1236,7 @@ etcd:
 				func(c *config.Config, t *testing.T) {
 					subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
 					subnet1.Name = "Subnet0"
-					expected := controlplane_config.EtcdSettings{
+					expected := clusterapi.EtcdSettings{
 						Etcd: clusterapi.Etcd{
 							Cluster: clusterapi.EtcdCluster{
 								HostedZone:             clusterapi.Identifier{ID: "hostedzone-abcdefg"},
@@ -1380,86 +1381,86 @@ worker:
 				hasDefaultEtcdSettings,
 				asgBasedNodePoolHasWaitSignalEnabled,
 				func(c *config.Config, t *testing.T) {
-					expected := controlplane_config.Experimental{
-						Admission: controlplane_config.Admission{
-							PodSecurityPolicy: controlplane_config.PodSecurityPolicy{
+					expected := clusterapi.Experimental{
+						Admission: clusterapi.Admission{
+							PodSecurityPolicy: clusterapi.PodSecurityPolicy{
 								Enabled: true,
 							},
-							AlwaysPullImages: controlplane_config.AlwaysPullImages{
+							AlwaysPullImages: clusterapi.AlwaysPullImages{
 								Enabled: true,
 							},
-							DenyEscalatingExec: controlplane_config.DenyEscalatingExec{
+							DenyEscalatingExec: clusterapi.DenyEscalatingExec{
 								Enabled: true,
 							},
-							Priority: controlplane_config.Priority{
+							Priority: clusterapi.Priority{
 								Enabled: true,
 							},
-							MutatingAdmissionWebhook: controlplane_config.MutatingAdmissionWebhook{
+							MutatingAdmissionWebhook: clusterapi.MutatingAdmissionWebhook{
 								Enabled: true,
 							},
-							ValidatingAdmissionWebhook: controlplane_config.ValidatingAdmissionWebhook{
+							ValidatingAdmissionWebhook: clusterapi.ValidatingAdmissionWebhook{
 								Enabled: true,
 							},
-							PersistentVolumeClaimResize: controlplane_config.PersistentVolumeClaimResize{
+							PersistentVolumeClaimResize: clusterapi.PersistentVolumeClaimResize{
 								Enabled: true,
 							},
 						},
-						AuditLog: controlplane_config.AuditLog{
+						AuditLog: clusterapi.AuditLog{
 							Enabled:   true,
 							LogPath:   "/var/log/audit.log",
 							MaxAge:    100,
 							MaxBackup: 10,
 							MaxSize:   5,
 						},
-						Authentication: controlplane_config.Authentication{
-							Webhook: controlplane_config.Webhook{
+						Authentication: clusterapi.Authentication{
+							Webhook: clusterapi.Webhook{
 								Enabled:  true,
 								CacheTTL: "1234s",
 								Config:   "e30k",
 							},
 						},
-						AwsEnvironment: controlplane_config.AwsEnvironment{
+						AwsEnvironment: clusterapi.AwsEnvironment{
 							Enabled: true,
 							Environment: map[string]string{
 								"CFNSTACK": `{ "Ref" : "AWS::StackId" }`,
 							},
 						},
-						AwsNodeLabels: controlplane_config.AwsNodeLabels{
+						AwsNodeLabels: clusterapi.AwsNodeLabels{
 							Enabled: true,
 						},
 						ClusterAutoscalerSupport: clusterapi.ClusterAutoscalerSupport{
 							Enabled: true,
 							Options: map[string]string{},
 						},
-						TLSBootstrap: controlplane_config.TLSBootstrap{
+						TLSBootstrap: clusterapi.TLSBootstrap{
 							Enabled: true,
 						},
-						EphemeralImageStorage: controlplane_config.EphemeralImageStorage{
+						EphemeralImageStorage: clusterapi.EphemeralImageStorage{
 							Enabled:    true,
 							Disk:       "xvdb",
 							Filesystem: "xfs",
 						},
-						KIAMSupport: controlplane_config.KIAMSupport{
+						KIAMSupport: clusterapi.KIAMSupport{
 							Enabled:         false,
 							Image:           clusterapi.Image{Repo: "quay.io/uswitch/kiam", Tag: "v2.8", RktPullDocker: false},
 							SessionDuration: "15m",
-							ServerAddresses: controlplane_config.KIAMServerAddresses{ServerAddress: "localhost:443", AgentAddress: "kiam-server:443"},
+							ServerAddresses: clusterapi.KIAMServerAddresses{ServerAddress: "localhost:443", AgentAddress: "kiam-server:443"},
 						},
-						Kube2IamSupport: controlplane_config.Kube2IamSupport{
+						Kube2IamSupport: clusterapi.Kube2IamSupport{
 							Enabled: true,
 						},
-						GpuSupport: controlplane_config.GpuSupport{
+						GpuSupport: clusterapi.GpuSupport{
 							Enabled:      true,
 							Version:      "375.66",
 							InstallImage: "shelmangroup/coreos-nvidia-driver-installer:latest",
 						},
 						KubeletOpts: "--image-gc-low-threshold 60 --image-gc-high-threshold 70",
-						LoadBalancer: controlplane_config.LoadBalancer{
+						LoadBalancer: clusterapi.LoadBalancer{
 							Enabled:          true,
 							Names:            []string{"manuallymanagedlb"},
 							SecurityGroupIds: []string{"sg-12345678"},
 						},
-						TargetGroup: controlplane_config.TargetGroup{
+						TargetGroup: clusterapi.TargetGroup{
 							Enabled:          true,
 							Arns:             []string{"arn:aws:elasticloadbalancing:eu-west-1:xxxxxxxxxxxx:targetgroup/manuallymanagedetg/xxxxxxxxxxxxxxxx"},
 							SecurityGroupIds: []string{"sg-12345678"},
@@ -1492,9 +1493,9 @@ worker:
 			},
 			assertCluster: []ClusterTester{
 				hasDefaultCluster,
-				func(c root.Cluster, t *testing.T) {
+				func(c *root.Cluster, t *testing.T) {
 					cp := c.ControlPlane()
-					controllerUserdataS3Part := cp.UserDataController.Parts[clusterapi.USERDATA_S3].Asset.Content
+					controllerUserdataS3Part := cp.UserData["Controller"].Parts[clusterapi.USERDATA_S3].Asset.Content
 					if !strings.Contains(controllerUserdataS3Part, `--feature-gates=PodPriority=true`) {
 						t.Error("missing controller feature gate: PodPriority=true")
 					}
@@ -1568,37 +1569,37 @@ worker:
 				hasDefaultEtcdSettings,
 				asgBasedNodePoolHasWaitSignalEnabled,
 				func(c *config.Config, t *testing.T) {
-					expected := controlplane_config.Experimental{
-						AwsEnvironment: controlplane_config.AwsEnvironment{
+					expected := clusterapi.Experimental{
+						AwsEnvironment: clusterapi.AwsEnvironment{
 							Enabled: true,
 							Environment: map[string]string{
 								"CFNSTACK": `{ "Ref" : "AWS::StackId" }`,
 							},
 						},
-						AwsNodeLabels: controlplane_config.AwsNodeLabels{
+						AwsNodeLabels: clusterapi.AwsNodeLabels{
 							Enabled: true,
 						},
 						ClusterAutoscalerSupport: clusterapi.ClusterAutoscalerSupport{
 							Enabled: true,
 							Options: map[string]string{},
 						},
-						TLSBootstrap: controlplane_config.TLSBootstrap{
+						TLSBootstrap: clusterapi.TLSBootstrap{
 							Enabled: false,
 						},
-						EphemeralImageStorage: controlplane_config.EphemeralImageStorage{
+						EphemeralImageStorage: clusterapi.EphemeralImageStorage{
 							Enabled:    true,
 							Disk:       "xvdb",
 							Filesystem: "xfs",
 						},
-						Kube2IamSupport: controlplane_config.Kube2IamSupport{
+						Kube2IamSupport: clusterapi.Kube2IamSupport{
 							Enabled: true,
 						},
-						LoadBalancer: controlplane_config.LoadBalancer{
+						LoadBalancer: clusterapi.LoadBalancer{
 							Enabled:          true,
 							Names:            []string{"manuallymanagedlb"},
 							SecurityGroupIds: []string{"sg-12345678"},
 						},
-						TargetGroup: controlplane_config.TargetGroup{
+						TargetGroup: clusterapi.TargetGroup{
 							Enabled:          true,
 							Arns:             []string{"arn:aws:elasticloadbalancing:eu-west-1:xxxxxxxxxxxx:targetgroup/manuallymanagedetg/xxxxxxxxxxxxxxxx"},
 							SecurityGroupIds: []string{"sg-12345678"},
@@ -1651,11 +1652,11 @@ worker:
 `,
 			assertConfig: []ConfigTester{
 				func(c *config.Config, t *testing.T) {
-					expected := controlplane_config.KIAMSupport{
+					expected := clusterapi.KIAMSupport{
 						Enabled:         true,
 						Image:           clusterapi.Image{Repo: "quay.io/uswitch/kiam", Tag: "v2.6", RktPullDocker: false},
 						SessionDuration: "30m",
-						ServerAddresses: controlplane_config.KIAMServerAddresses{ServerAddress: "localhost", AgentAddress: "kiam-server"},
+						ServerAddresses: clusterapi.KIAMServerAddresses{ServerAddress: "localhost", AgentAddress: "kiam-server"},
 					}
 
 					actual := c.Experimental
@@ -1682,12 +1683,12 @@ worker:
 `,
 			assertConfig: []ConfigTester{
 				func(c *config.Config, t *testing.T) {
-					expected := controlplane_config.Experimental{
-						KIAMSupport: controlplane_config.KIAMSupport{
+					expected := clusterapi.Experimental{
+						KIAMSupport: clusterapi.KIAMSupport{
 							Enabled:         true,
 							Image:           clusterapi.Image{Repo: "quay.io/uswitch/kiam", Tag: "v2.8", RktPullDocker: false},
 							SessionDuration: "15m",
-							ServerAddresses: controlplane_config.KIAMServerAddresses{ServerAddress: "localhost:443", AgentAddress: "kiam-server:443"},
+							ServerAddresses: clusterapi.KIAMServerAddresses{ServerAddress: "localhost:443", AgentAddress: "kiam-server:443"},
 						},
 					}
 					p := c.NodePools[0]
@@ -2097,8 +2098,8 @@ apiEndpoints:
     recordSetManaged: false
 `,
 			assertCluster: []ClusterTester{
-				func(rootCluster root.Cluster, t *testing.T) {
-					c := rootCluster.ControlPlane()
+				func(rootCluster *root.Cluster, t *testing.T) {
+					c := rootCluster.ControlPlane().Config
 
 					private1 := clusterapi.NewPrivateSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-PrivateSubnet1"}}`)
 					private1.Name = "privateSubnet1"
@@ -3241,7 +3242,7 @@ subnets:
 					subnets := clusterapi.Subnets{
 						subnet1,
 					}
-					expected := controlplane_config.EtcdSettings{
+					expected := clusterapi.EtcdSettings{
 						Etcd: clusterapi.Etcd{
 							EC2Instance: clusterapi.EC2Instance{
 								Count:        1,
@@ -3663,7 +3664,7 @@ worker:
 			configBytes := validCase.configYaml
 			// TODO Allow including plugins in test data?
 			plugins := []*clusterapi.Plugin{}
-			providedConfig, err := config.ConfigFromBytesWithStubs([]byte(configBytes), plugins, helper.DummyEncryptService{}, helper.DummyCFInterrogator{}, helper.DummyEC2Interrogator{})
+			providedConfig, err := config.ConfigFromBytes([]byte(configBytes), plugins)
 			if err != nil {
 				t.Errorf("failed to parse config %s: %v", configBytes, err)
 				t.FailNow()
@@ -3687,20 +3688,26 @@ worker:
 				stackTemplateOptions.NetworkStackTemplateTmplFile = "../../core/network/config/templates/stack-template.json"
 				stackTemplateOptions.EtcdStackTemplateTmplFile = "../../core/etcd/config/templates/stack-template.json"
 
-				cluster, err := root.InitClusterFromBytes(providedConfig, stackTemplateOptions, false)
+				cl, err := root.CompileClusterFromConfig(providedConfig, stackTemplateOptions, false)
 				if err != nil {
 					t.Errorf("failed to create cluster driver : %v", err)
 					t.FailNow()
 				}
 
+				cl.Session = &cluster.Session{
+					ProvidedEncryptService:  helper.DummyEncryptService{},
+					ProvidedCFInterrogator:  helper.DummyCFInterrogator{},
+					ProvidedEC2Interrogator: helper.DummyEC2Interrogator{},
+				}
+
 				t.Run("AssertCluster", func(t *testing.T) {
 					for _, assertion := range validCase.assertCluster {
-						assertion(cluster, t)
+						assertion(cl, t)
 					}
 				})
 
 				t.Run("ValidateTemplates", func(t *testing.T) {
-					if err := cluster.ValidateTemplates(); err != nil {
+					if err := cl.ValidateTemplates(); err != nil {
 						t.Errorf("failed to render stack template: %v", err)
 					}
 				})
@@ -3715,7 +3722,7 @@ worker:
 							t.FailNow()
 						}
 
-						report, err := cluster.ValidateStack()
+						report, err := cl.ValidateStack()
 
 						if err != nil {
 							t.Errorf("failed to validate stack: %s %v", report, err)

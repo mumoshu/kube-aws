@@ -21,8 +21,8 @@ func genAssets(t *testing.T) *credential.RawAssetsOnMemory {
 		t.Fatalf("failed generating tls ca: %v", err)
 	}
 	cfg, err := Compile(c, clusterapi.ClusterOptions{})
-	r := NewCredentialRenderer(cfg)
-	assets, err := r.NewAssetsOnMemory(caKey, caCert, true)
+	r := NewCredentialGenerator(cfg)
+	assets, err := r.GenerateAssetsOnMemory(caKey, caCert, true)
 	if err != nil {
 		t.Fatalf("failed generating assets: %v", err)
 	}

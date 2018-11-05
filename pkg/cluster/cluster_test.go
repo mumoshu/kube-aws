@@ -1,4 +1,4 @@
-package clusterapi
+package cluster
 
 import (
 	"fmt"
@@ -7,22 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-yaml/yaml"
+	"encoding/json"
 	"github.com/kubernetes-incubator/kube-aws/netutil"
+	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
 )
-
-const externalDNSNameConfig = `externalDNSName: test.staging.core-os.net
-`
-
-const availabilityZoneConfig = `availabilityZone: us-west-1c
-`
-
-const apiEndpointMinimalConfigYaml = `keyName: test-key-name
-region: us-west-1
-s3URI: s3://mybucket/mydir
-clusterName: test-cluster-name
-kmsKeyArn: "arn:aws:kms:us-west-1:xxxxxxxxx:key/xxxxxxxxxxxxxxxxxxx"
-`
 
 const chinaAPIEndpointMinimalConfigYaml = `keyName: test-key-name
 region: cn-north-1
@@ -31,9 +19,7 @@ availabilityZone: cn-north-1a
 clusterName: test-cluster-name
 `
 
-const minimalConfigYaml = externalDNSNameConfig + apiEndpointMinimalConfigYaml
 const minimalChinaConfigYaml = externalDNSNameConfig + chinaAPIEndpointMinimalConfigYaml
-const singleAzConfigYaml = minimalConfigYaml + availabilityZoneConfig
 
 var goodNetworkingConfigs = []string{
 	``, //Tests validity of default network config values
@@ -233,16 +219,6 @@ apiEndpoints:
     securityGroupIds: []
     apiAccessAllowedSourceCIDRs: []
 `,
-}
-
-// ClusterFromBytes Necessary for unit tests, which store configs as hardcoded strings
-func ClusterFromBytes(data []byte) (*Cluster, error) {
-	c := NewDefaultCluster()
-
-	if err := yaml.Unmarshal(data, c); err != nil {
-		return nil, fmt.Errorf("failed to parse cluster: %v", err)
-	}
-	return c, nil
 }
 
 func TestNetworkValidation(t *testing.T) {
@@ -568,7 +544,7 @@ func TestMultipleSubnets(t *testing.T) {
 
 	validConfigs := []struct {
 		conf    string
-		subnets Subnets
+		subnets clusterapi.Subnets
 	}{
 		{
 			conf: `
@@ -580,7 +556,7 @@ subnets:
   - availabilityZone: ap-northeast-1c
     instanceCIDR: 10.4.4.0/24
 `,
-			subnets: Subnets{
+			subnets: clusterapi.Subnets{
 				{
 					InstanceCIDR:     "10.4.3.0/24",
 					AvailabilityZone: "ap-northeast-1a",
@@ -600,7 +576,7 @@ vpcCIDR: 10.4.3.0/16
 availabilityZone: ap-northeast-1a
 instanceCIDR: 10.4.3.0/24
 `,
-			subnets: Subnets{
+			subnets: clusterapi.Subnets{
 				{
 					AvailabilityZone: "ap-northeast-1a",
 					InstanceCIDR:     "10.4.3.0/24",
@@ -616,7 +592,7 @@ availabilityZone: ap-northeast-1a
 instanceCIDR: 10.4.3.0/24
 subnets: []
 `,
-			subnets: Subnets{
+			subnets: clusterapi.Subnets{
 				{
 					AvailabilityZone: "ap-northeast-1a",
 					InstanceCIDR:     "10.4.3.0/24",
@@ -630,7 +606,7 @@ subnets: []
 availabilityZone: "ap-northeast-1a"
 subnets: []
 `,
-			subnets: Subnets{
+			subnets: clusterapi.Subnets{
 				{
 					AvailabilityZone: "ap-northeast-1a",
 					InstanceCIDR:     "10.0.0.0/24",
@@ -643,7 +619,7 @@ subnets: []
 # Missing subnets field fall-backs to the single subnet with the default az/cidr.
 availabilityZone: "ap-northeast-1a"
 `,
-			subnets: Subnets{
+			subnets: clusterapi.Subnets{
 				{
 					AvailabilityZone: "ap-northeast-1a",
 					InstanceCIDR:     "10.0.0.0/24",
@@ -935,15 +911,15 @@ func TestNodeDrainerConfig(t *testing.T) {
 
 	validConfigs := []struct {
 		conf        string
-		nodeDrainer NodeDrainer
+		nodeDrainer clusterapi.NodeDrainer
 	}{
 		{
 			conf: `
 `,
-			nodeDrainer: NodeDrainer{
+			nodeDrainer: clusterapi.NodeDrainer{
 				Enabled:      false,
 				DrainTimeout: 5,
-				IAMRole:      IAMRole{},
+				IAMRole:      clusterapi.IAMRole{},
 			},
 		},
 		{
@@ -954,10 +930,10 @@ experimental:
     iamRole:
       arn: arn:aws:iam::0123456789012:role/asg-list-role
 `,
-			nodeDrainer: NodeDrainer{
+			nodeDrainer: clusterapi.NodeDrainer{
 				Enabled:      true,
 				DrainTimeout: 5,
-				IAMRole:      IAMRole{ARN: ARN{Arn: "arn:aws:iam::0123456789012:role/asg-list-role"}},
+				IAMRole:      clusterapi.IAMRole{ARN: clusterapi.ARN{Arn: "arn:aws:iam::0123456789012:role/asg-list-role"}},
 			},
 		},
 		{
@@ -967,7 +943,7 @@ experimental:
     enabled: true
     drainTimeout: 3
 `,
-			nodeDrainer: NodeDrainer{
+			nodeDrainer: clusterapi.NodeDrainer{
 				Enabled:      true,
 				DrainTimeout: 3,
 			},
@@ -996,12 +972,12 @@ func TestEncryptionAtRestConfig(t *testing.T) {
 
 	validConfigs := []struct {
 		conf             string
-		encryptionAtRest EncryptionAtRest
+		encryptionAtRest clusterapi.EncryptionAtRest
 	}{
 		{
 			conf: `
 `,
-			encryptionAtRest: EncryptionAtRest{
+			encryptionAtRest: clusterapi.EncryptionAtRest{
 				Enabled: false,
 			},
 		},
@@ -1011,7 +987,7 @@ kubernetes:
   encryptionAtRest:
     enabled: false
 `,
-			encryptionAtRest: EncryptionAtRest{
+			encryptionAtRest: clusterapi.EncryptionAtRest{
 				Enabled: false,
 			},
 		},
@@ -1021,7 +997,7 @@ kubernetes:
   encryptionAtRest:
     enabled: true
 `,
-			encryptionAtRest: EncryptionAtRest{
+			encryptionAtRest: clusterapi.EncryptionAtRest{
 				Enabled: true,
 			},
 		},
@@ -1031,7 +1007,7 @@ kubernetes:
 encryptionAtRest:
   enabled: true
 `,
-			encryptionAtRest: EncryptionAtRest{
+			encryptionAtRest: clusterapi.EncryptionAtRest{
 				Enabled: false,
 			},
 		},
@@ -1041,7 +1017,13 @@ encryptionAtRest:
 		confBody := singleAzConfigYaml + conf.conf
 		c, err := ClusterFromBytes([]byte(confBody))
 		if err != nil {
-			t.Errorf("failed to parse config %s: %v", confBody, err)
+			y, err2 := json.MarshalIndent(c, "", "  ")
+			if err2 != nil {
+				t.Errorf("%v", err2)
+				t.FailNow()
+			}
+			t.Logf("%s", string(y))
+			t.Errorf("failed to parse config: %v:\n%s", err, confBody)
 			continue
 		}
 		if !reflect.DeepEqual(c.Kubernetes.EncryptionAtRest, conf.encryptionAtRest) {
@@ -1058,12 +1040,12 @@ func TestRotateCerts(t *testing.T) {
 
 	validConfigs := []struct {
 		conf        string
-		rotateCerts RotateCerts
+		rotateCerts clusterapi.RotateCerts
 	}{
 		{
 			conf: `
 `,
-			rotateCerts: RotateCerts{
+			rotateCerts: clusterapi.RotateCerts{
 				Enabled: false,
 			},
 		},
@@ -1073,7 +1055,7 @@ kubelet:
   rotateCerts:
     enabled: false
 `,
-			rotateCerts: RotateCerts{
+			rotateCerts: clusterapi.RotateCerts{
 				Enabled: false,
 			},
 		},
@@ -1083,7 +1065,7 @@ kubelet:
   rotateCerts:
     enabled: true
 `,
-			rotateCerts: RotateCerts{
+			rotateCerts: clusterapi.RotateCerts{
 				Enabled: true,
 			},
 		},
@@ -1092,7 +1074,7 @@ kubelet:
 rotateCerts:
   enabled: true
 `,
-			rotateCerts: RotateCerts{
+			rotateCerts: clusterapi.RotateCerts{
 				Enabled: false,
 			},
 		},
@@ -1169,16 +1151,16 @@ func TestKubeDns(t *testing.T) {
 
 	validConfigs := []struct {
 		conf    string
-		kubeDns KubeDns
+		kubeDns clusterapi.KubeDns
 	}{
 		{
 			conf: `
 `,
-			kubeDns: KubeDns{
+			kubeDns: clusterapi.KubeDns{
 				Provider:            "kube-dns",
 				NodeLocalResolver:   false,
 				DeployToControllers: false,
-				Autoscaler: KubeDnsAutoscaler{
+				Autoscaler: clusterapi.KubeDnsAutoscaler{
 					CoresPerReplica: 256,
 					NodesPerReplica: 16,
 					Min:             2,
@@ -1191,11 +1173,11 @@ kubeDns:
   nodeLocalResolver: false
   deployToControllers: false
 `,
-			kubeDns: KubeDns{
+			kubeDns: clusterapi.KubeDns{
 				Provider:            "kube-dns",
 				NodeLocalResolver:   false,
 				DeployToControllers: false,
-				Autoscaler: KubeDnsAutoscaler{
+				Autoscaler: clusterapi.KubeDnsAutoscaler{
 					CoresPerReplica: 256,
 					NodesPerReplica: 16,
 					Min:             2,
@@ -1212,11 +1194,11 @@ kubeDns:
     nodesPerReplica: 10
     min: 15
 `,
-			kubeDns: KubeDns{
+			kubeDns: clusterapi.KubeDns{
 				Provider:            "kube-dns",
 				NodeLocalResolver:   true,
 				DeployToControllers: true,
-				Autoscaler: KubeDnsAutoscaler{
+				Autoscaler: clusterapi.KubeDnsAutoscaler{
 					CoresPerReplica: 5,
 					NodesPerReplica: 10,
 					Min:             15,
@@ -1228,11 +1210,11 @@ kubeDns:
 kubeDns:
   provider: coredns
 `,
-			kubeDns: KubeDns{
+			kubeDns: clusterapi.KubeDns{
 				Provider:            "coredns",
 				NodeLocalResolver:   false,
 				DeployToControllers: false,
-				Autoscaler: KubeDnsAutoscaler{
+				Autoscaler: clusterapi.KubeDnsAutoscaler{
 					CoresPerReplica: 256,
 					NodesPerReplica: 16,
 					Min:             2,
@@ -1262,12 +1244,12 @@ func TestTLSBootstrapConfig(t *testing.T) {
 
 	validConfigs := []struct {
 		conf         string
-		tlsBootstrap TLSBootstrap
+		tlsBootstrap clusterapi.TLSBootstrap
 	}{
 		{
 			conf: `
 `,
-			tlsBootstrap: TLSBootstrap{
+			tlsBootstrap: clusterapi.TLSBootstrap{
 				Enabled: false,
 			},
 		},
@@ -1277,7 +1259,7 @@ experimental:
   tlsBootstrap:
     enabled: false
 `,
-			tlsBootstrap: TLSBootstrap{
+			tlsBootstrap: clusterapi.TLSBootstrap{
 				Enabled: false,
 			},
 		},
@@ -1287,7 +1269,7 @@ experimental:
   tlsBootstrap:
     enabled: true
 `,
-			tlsBootstrap: TLSBootstrap{
+			tlsBootstrap: clusterapi.TLSBootstrap{
 				Enabled: true,
 			},
 		},
@@ -1297,7 +1279,7 @@ experimental:
 tlsBootstrap:
   enabled: true
 `,
-			tlsBootstrap: TLSBootstrap{
+			tlsBootstrap: clusterapi.TLSBootstrap{
 				Enabled: false,
 			},
 		},
@@ -1323,12 +1305,12 @@ tlsBootstrap:
 func TestNodeAuthorizerConfig(t *testing.T) {
 	validConfigs := []struct {
 		conf           string
-		nodeAuthorizer NodeAuthorizer
+		nodeAuthorizer clusterapi.NodeAuthorizer
 	}{
 		{
 			conf: `
 `,
-			nodeAuthorizer: NodeAuthorizer{
+			nodeAuthorizer: clusterapi.NodeAuthorizer{
 				Enabled: false,
 			},
 		},
@@ -1338,7 +1320,7 @@ experimental:
   nodeAuthorizer:
     enabled: false
 `,
-			nodeAuthorizer: NodeAuthorizer{
+			nodeAuthorizer: clusterapi.NodeAuthorizer{
 				Enabled: false,
 			},
 		},
@@ -1350,7 +1332,7 @@ experimental:
   tlsBootstrap:
     enabled: true
 `,
-			nodeAuthorizer: NodeAuthorizer{
+			nodeAuthorizer: clusterapi.NodeAuthorizer{
 				Enabled: true,
 			},
 		},
@@ -1445,12 +1427,12 @@ func TestValidateExistingVPC(t *testing.T) {
 		{"10.1.0.0/16", []string{"1o.1.1.o/24", "10.1.2.0/24"}},
 	}
 
-	cluster := NewDefaultCluster()
+	cluster := clusterapi.NewDefaultCluster()
 
 	cluster.VPCCIDR = "10.0.0.0/16"
-	cluster.Subnets = Subnets{
-		NewPublicSubnet("ap-northeast-1a", "10.0.1.0/24"),
-		NewPublicSubnet("ap-northeast-1a", "10.0.2.0/24"),
+	cluster.Subnets = clusterapi.Subnets{
+		clusterapi.NewPublicSubnet("ap-northeast-1a", "10.0.1.0/24"),
+		clusterapi.NewPublicSubnet("ap-northeast-1a", "10.0.2.0/24"),
 	}
 
 	for _, testCase := range validCases {

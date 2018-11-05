@@ -74,6 +74,18 @@ func (c ControllerTmplCtx) UserDataController() *clusterapi.UserData {
 	return c.GetUserData("Controller")
 }
 
+func (c ControllerTmplCtx) MinControllerCount() int {
+	return c.Controller.MinControllerCount()
+}
+
+func (c ControllerTmplCtx) MaxControllerCount() int {
+	return c.Controller.MaxControllerCount()
+}
+
+func (c ControllerTmplCtx) ControllerRollingUpdateMinInstancesInService() int {
+	return c.Controller.ControllerRollingUpdateMinInstancesInService()
+}
+
 // WorkerTmplCtx is used for rendering worker stacks and userdata
 type WorkerTmplCtx struct {
 	*Stack

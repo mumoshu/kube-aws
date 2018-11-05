@@ -33,11 +33,6 @@ func nodePoolPreprocess(c clusterapi.WorkerNodePool, main *Config) (*clusterapi.
 		}
 	}
 
-	// Validate whole the inputs including inherited ones
-	if err := c.Validate(main.Experimental); err != nil {
-		return nil, err
-	}
-
 	// Default to public subnets defined in the main cluster
 	// CAUTION: cluster-autoscaler Won't work if there're 2 or more subnets spanning over different AZs
 	if len(c.Subnets) == 0 {
@@ -113,6 +108,15 @@ kube-aws can't save users from mistakes like that
 `, c.NodePoolName, apiEndpoint.DNSName)
 	}
 	c.APIEndpoint = apiEndpoint
+
+	if spec.Autoscaling.ClusterAutoscaler.Enabled && !main.Addons.ClusterAutoscaler.Enabled {
+		return nil, errors.New("Autoscaling with cluster-autoscaler can't be enabled for node pools because " +
+			"you didn't enabled the cluster-autoscaler addon. Enable it by turning on `addons.clusterAutoscaler.enabled`")
+	}
+
+	if err := c.Validate(); err != nil {
+		return nil, err
+	}
 
 	return c, nil
 }
