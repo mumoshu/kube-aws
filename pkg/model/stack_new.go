@@ -44,7 +44,7 @@ func newStack(stackName string, conf *Config, opts api.StackTemplateOptions, ass
 // Any configuration error like a reference to a missing file results in kube-aws existing with an error.
 func NewControlPlaneStack(conf *Config, opts api.StackTemplateOptions, extras clusterextension.ClusterExtension, assetsConfig *credential.CompactAssets) (*Stack, error) {
 	return newStack(
-		ControlPlaneStackName,
+		conf.ControlPlaneStackName(),
 		conf,
 		opts,
 		assetsConfig,
@@ -107,7 +107,7 @@ func NewControlPlaneStack(conf *Config, opts api.StackTemplateOptions, extras cl
 
 func NewNetworkStack(conf *Config, nodePools []*Stack, opts api.StackTemplateOptions, extras clusterextension.ClusterExtension, assetsConfig *credential.CompactAssets) (*Stack, error) {
 	return newStack(
-		"network",
+		conf.NetworkStackName(),
 		conf,
 		opts,
 		assetsConfig,
@@ -131,7 +131,7 @@ func NewNetworkStack(conf *Config, nodePools []*Stack, opts api.StackTemplateOpt
 
 func NewEtcdStack(conf *Config, opts api.StackTemplateOptions, extras clusterextension.ClusterExtension, assetsConfig *credential.CompactAssets, s *Context) (*Stack, error) {
 	return newStack(
-		"etcd",
+		conf.EtcdStackName(),
 		conf,
 		opts,
 		assetsConfig,

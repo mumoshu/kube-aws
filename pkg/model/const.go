@@ -8,5 +8,7 @@ const (
 	// This is not needed to be unique in an AWS account because the actual name of a nested stack is generated randomly
 	// by CloudFormation by including the logical name.
 	// This is NOT intended to be used to reference stack name from cloud-config as the target of awscli or cfn-bootstrap-tools commands e.g. `cfn-init` and `cfn-signal`
-	ControlPlaneStackName = "control-plane"
+	controlPlaneStackName = "control-plane"
+	networkStackName      = "network"
+	etcdStackName         = "etcd"
 )
