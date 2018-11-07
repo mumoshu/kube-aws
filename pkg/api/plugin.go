@@ -142,19 +142,6 @@ type HelmRelease struct {
 	Values  Values `yaml:"values,omitempty"`
 }
 
-func (k *Kubernetes) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	type t Kubernetes
-	work := t(Kubernetes{
-		Manifests: KubernetesManifests{},
-	})
-	if err := unmarshal(&work); err != nil {
-		return fmt.Errorf("failed to parse kubernetes plugin config: %v", err)
-	}
-	*k = Kubernetes(work)
-
-	return nil
-}
-
 type KubernetesAPIServer struct {
 	Flags   CommandLineFlags `yaml:"flags,omitempty"`
 	Volumes APIServerVolumes `yaml:"volumes,omitempty"`
