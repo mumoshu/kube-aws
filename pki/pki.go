@@ -6,7 +6,7 @@ import (
 	"crypto/x509/pkix"
 	"errors"
 	"fmt"
-	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
+	"github.com/kubernetes-incubator/kube-aws/pkg/api"
 	"math"
 	"math/big"
 	"net"
@@ -20,7 +20,7 @@ func NewPKI() *PKI {
 	return &PKI{}
 }
 
-func (pki *PKI) GenerateKeyPair(spec clusterapi.KeyPairSpec) (*KeyPair, error) {
+func (pki *PKI) GenerateKeyPair(spec api.KeyPairSpec) (*KeyPair, error) {
 	key, err := NewPrivateKey()
 	if err != nil {
 		return nil, err

@@ -4,31 +4,31 @@ import (
 	"fmt"
 	"github.com/kubernetes-incubator/kube-aws/fingerprint"
 	"github.com/kubernetes-incubator/kube-aws/logger"
-	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
+	"github.com/kubernetes-incubator/kube-aws/pkg/api"
 	"path/filepath"
 	"strings"
 )
 
 type Assets interface {
 	Merge(Assets) Assets
-	AsMap() map[clusterapi.AssetID]clusterapi.Asset
-	FindAssetByStackAndFileName(string, string) (clusterapi.Asset, error)
+	AsMap() map[api.AssetID]api.Asset
+	FindAssetByStackAndFileName(string, string) (api.Asset, error)
 	S3Prefix() string
 }
 
 func EmptyAssets() assetsImpl {
 	return assetsImpl{
-		underlying: map[clusterapi.AssetID]clusterapi.Asset{},
+		underlying: map[api.AssetID]api.Asset{},
 	}
 }
 
 type assetsImpl struct {
 	s3Prefix   string
-	underlying map[clusterapi.AssetID]clusterapi.Asset
+	underlying map[api.AssetID]api.Asset
 }
 
 func (a assetsImpl) Merge(other Assets) Assets {
-	merged := map[clusterapi.AssetID]clusterapi.Asset{}
+	merged := map[api.AssetID]api.Asset{}
 
 	for k, v := range a.underlying {
 		merged[k] = v
@@ -47,11 +47,11 @@ func (a assetsImpl) S3Prefix() string {
 	return a.s3Prefix
 }
 
-func (a assetsImpl) AsMap() map[clusterapi.AssetID]clusterapi.Asset {
+func (a assetsImpl) AsMap() map[api.AssetID]api.Asset {
 	return a.underlying
 }
 
-func (a assetsImpl) findAssetByID(id clusterapi.AssetID) (clusterapi.Asset, error) {
+func (a assetsImpl) findAssetByID(id api.AssetID) (api.Asset, error) {
 	asset, ok := a.underlying[id]
 	if !ok {
 		ks := []string{}
@@ -65,28 +65,28 @@ func (a assetsImpl) findAssetByID(id clusterapi.AssetID) (clusterapi.Asset, erro
 	return asset, nil
 }
 
-func (a assetsImpl) FindAssetByStackAndFileName(stack string, file string) (clusterapi.Asset, error) {
-	return a.findAssetByID(clusterapi.NewAssetID(stack, file))
+func (a assetsImpl) FindAssetByStackAndFileName(stack string, file string) (api.Asset, error) {
+	return a.findAssetByID(api.NewAssetID(stack, file))
 }
 
 type AssetsBuilder interface {
-	Add(filename string, content string) (clusterapi.Asset, error)
-	AddUserDataPart(userdata clusterapi.UserData, part string, assetName string) error
+	Add(filename string, content string) (api.Asset, error)
+	AddUserDataPart(userdata api.UserData, part string, assetName string) error
 	Build() Assets
 }
 
 type AssetsBuilderImpl struct {
 	AssetLocationProvider
-	assets map[clusterapi.AssetID]clusterapi.Asset
+	assets map[api.AssetID]api.Asset
 }
 
-func (b *AssetsBuilderImpl) Add(filename string, content string) (clusterapi.Asset, error) {
+func (b *AssetsBuilderImpl) Add(filename string, content string) (api.Asset, error) {
 	loc, err := b.Locate(filename)
 	if err != nil {
-		return clusterapi.Asset{}, err
+		return api.Asset{}, err
 	}
 
-	asset := clusterapi.Asset{
+	asset := api.Asset{
 		AssetLocation: *loc,
 		Content:       content,
 	}
@@ -95,7 +95,7 @@ func (b *AssetsBuilderImpl) Add(filename string, content string) (clusterapi.Ass
 	return asset, nil
 }
 
-func (b *AssetsBuilderImpl) AddUserDataPart(userdata clusterapi.UserData, part string, assetName string) error {
+func (b *AssetsBuilderImpl) AddUserDataPart(userdata api.UserData, part string, assetName string) error {
 	if p, ok := userdata.Parts[part]; ok {
 		content, err := p.Template()
 		if err != nil {
@@ -119,7 +119,7 @@ func (b *AssetsBuilderImpl) Build() Assets {
 	}
 }
 
-func NewAssetsBuilder(stackName string, s3URI string, region clusterapi.Region) (*AssetsBuilderImpl, error) {
+func NewAssetsBuilder(stackName string, s3URI string, region api.Region) (*AssetsBuilderImpl, error) {
 	uri, err := S3URIFromString(s3URI)
 
 	if err != nil {
@@ -132,13 +132,13 @@ func NewAssetsBuilder(stackName string, s3URI string, region clusterapi.Region) 
 			region:    region,
 			stackName: stackName,
 		},
-		assets: map[clusterapi.AssetID]clusterapi.Asset{},
+		assets: map[api.AssetID]api.Asset{},
 	}, nil
 }
 
 type AssetLocationProvider struct {
 	s3URI     S3URI
-	region    clusterapi.Region
+	region    api.Region
 	stackName string
 }
 
@@ -146,7 +146,7 @@ func (p AssetLocationProvider) S3DirURI() string {
 	return fmt.Sprintf("%s/%s", p.s3URI.String(), p.stackName)
 }
 
-func (p AssetLocationProvider) Locate(filename string) (*clusterapi.AssetLocation, error) {
+func (p AssetLocationProvider) Locate(filename string) (*api.AssetLocation, error) {
 	if filename == "" {
 		return nil, fmt.Errorf("Can't produce S3 location for empty filename")
 	}
@@ -162,9 +162,9 @@ func (p AssetLocationProvider) Locate(filename string) (*clusterapi.AssetLocatio
 		"/",
 	)
 
-	id := clusterapi.NewAssetID(p.stackName, filename)
+	id := api.NewAssetID(p.stackName, filename)
 
-	return &clusterapi.AssetLocation{
+	return &api.AssetLocation{
 		ID:     id,
 		Key:    key,
 		Bucket: p.s3URI.Bucket(),

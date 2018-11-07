@@ -19,6 +19,10 @@ type DummyCFInterrogator struct {
 	ListStacksResourcesResult *cloudformation.ListStackResourcesOutput
 }
 
+type DummyStackTemplateGetter struct {
+	GetStackTemplateOutput *cloudformation.GetTemplateOutput
+}
+
 func (cf DummyCFInterrogator) ListStacks(input *cloudformation.ListStacksInput) (*cloudformation.ListStacksOutput, error) {
 	return cf.ListStacksResult, nil
 }
@@ -68,4 +72,11 @@ func (cfSvc *DummyCloudformationService) CreateStack(req *cloudformation.CreateS
 	}
 
 	return resp, nil
+}
+
+func (cfn DummyStackTemplateGetter) GetTemplate(input *cloudformation.GetTemplateInput) (*cloudformation.GetTemplateOutput, error) {
+	if cfn.GetStackTemplateOutput == nil {
+		return nil, fmt.Errorf("result is not set")
+	}
+	return cfn.GetStackTemplateOutput, nil
 }

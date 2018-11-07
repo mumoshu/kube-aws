@@ -9,12 +9,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/kubernetes-incubator/kube-aws/builtin"
 	"github.com/kubernetes-incubator/kube-aws/cfnstack"
 	"github.com/kubernetes-incubator/kube-aws/core/root"
 	"github.com/kubernetes-incubator/kube-aws/core/root/config"
-	"github.com/kubernetes-incubator/kube-aws/pkg/cluster"
-	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
+	"github.com/kubernetes-incubator/kube-aws/pkg/api"
+	"github.com/kubernetes-incubator/kube-aws/pkg/model"
 	"github.com/kubernetes-incubator/kube-aws/test/helper"
 )
 
@@ -45,126 +46,122 @@ func TestMainClusterConfig(t *testing.T) {
 	firstAz := kubeAwsSettings.region + "c"
 
 	hasDefaultEtcdSettings := func(c *config.Config, t *testing.T) {
-		subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
+		subnet1 := api.NewPublicSubnet(firstAz, "10.0.0.0/24")
 		subnet1.Name = "Subnet0"
-		expected := clusterapi.EtcdSettings{
-			Etcd: clusterapi.Etcd{
-				EC2Instance: clusterapi.EC2Instance{
+		expected := api.EtcdSettings{
+			Etcd: api.Etcd{
+				EC2Instance: api.EC2Instance{
 					Count:        1,
 					InstanceType: "t2.medium",
 					Tenancy:      "default",
-					RootVolume: clusterapi.RootVolume{
+					RootVolume: api.RootVolume{
 						Size: 30,
 						Type: "gp2",
 						IOPS: 0,
 					},
 				},
-				DataVolume: clusterapi.DataVolume{
+				DataVolume: api.DataVolume{
 					Size:      30,
 					Type:      "gp2",
 					IOPS:      0,
 					Ephemeral: false,
 				},
-				Subnets: clusterapi.Subnets{
+				Subnets: api.Subnets{
 					subnet1,
 				},
-				UserSuppliedArgs: clusterapi.UserSuppliedArgs{
-					QuotaBackendBytes: clusterapi.DefaultQuotaBackendBytes,
+				UserSuppliedArgs: api.UserSuppliedArgs{
+					QuotaBackendBytes: api.DefaultQuotaBackendBytes,
 				},
 			},
 		}
 		actual := c.EtcdSettings
-		if !reflect.DeepEqual(expected, actual) {
-			t.Errorf(
-				"EtcdSettings didn't match: expected=%v actual=%v",
-				expected,
-				actual,
-			)
+		if diff := cmp.Diff(actual, expected); diff != "" {
+			t.Errorf("EtcdSettings didn't match: %s", diff)
 		}
 	}
 
 	hasDefaultExperimentalFeatures := func(c *config.Config, t *testing.T) {
-		expected := clusterapi.Experimental{
-			Admission: clusterapi.Admission{
-				PodSecurityPolicy: clusterapi.PodSecurityPolicy{
+		expected := api.Experimental{
+			Admission: api.Admission{
+				PodSecurityPolicy: api.PodSecurityPolicy{
 					Enabled: false,
 				},
-				AlwaysPullImages: clusterapi.AlwaysPullImages{
+				AlwaysPullImages: api.AlwaysPullImages{
 					Enabled: false,
 				},
-				DenyEscalatingExec: clusterapi.DenyEscalatingExec{
+				DenyEscalatingExec: api.DenyEscalatingExec{
 					Enabled: false,
 				},
-				Priority: clusterapi.Priority{
+				Priority: api.Priority{
 					Enabled: false,
 				},
-				MutatingAdmissionWebhook: clusterapi.MutatingAdmissionWebhook{
+				MutatingAdmissionWebhook: api.MutatingAdmissionWebhook{
 					Enabled: false,
 				},
-				ValidatingAdmissionWebhook: clusterapi.ValidatingAdmissionWebhook{
+				ValidatingAdmissionWebhook: api.ValidatingAdmissionWebhook{
 					Enabled: false,
 				},
-				PersistentVolumeClaimResize: clusterapi.PersistentVolumeClaimResize{
+				PersistentVolumeClaimResize: api.PersistentVolumeClaimResize{
 					Enabled: false,
 				},
 			},
-			AuditLog: clusterapi.AuditLog{
+			AuditLog: api.AuditLog{
 				Enabled:   false,
 				LogPath:   "/var/log/kube-apiserver-audit.log",
 				MaxAge:    30,
 				MaxBackup: 1,
 				MaxSize:   100,
 			},
-			Authentication: clusterapi.Authentication{
-				Webhook: clusterapi.Webhook{
+			Authentication: api.Authentication{
+				Webhook: api.Webhook{
 					Enabled:  false,
 					CacheTTL: "5m0s",
 					Config:   "",
 				},
 			},
-			AwsEnvironment: clusterapi.AwsEnvironment{
+			AwsEnvironment: api.AwsEnvironment{
 				Enabled: false,
 			},
-			AwsNodeLabels: clusterapi.AwsNodeLabels{
+			AwsNodeLabels: api.AwsNodeLabels{
 				Enabled: false,
 			},
-			ClusterAutoscalerSupport: clusterapi.ClusterAutoscalerSupport{
+			ClusterAutoscalerSupport: api.ClusterAutoscalerSupport{
 				Enabled: true,
 				Options: map[string]string{},
 			},
-			TLSBootstrap: clusterapi.TLSBootstrap{
+			TLSBootstrap: api.TLSBootstrap{
 				Enabled: false,
 			},
-			EphemeralImageStorage: clusterapi.EphemeralImageStorage{
+			EphemeralImageStorage: api.EphemeralImageStorage{
 				Enabled:    false,
 				Disk:       "xvdb",
 				Filesystem: "xfs",
 			},
-			KIAMSupport: clusterapi.KIAMSupport{
+			KIAMSupport: api.KIAMSupport{
 				Enabled:         false,
-				Image:           clusterapi.Image{Repo: "quay.io/uswitch/kiam", Tag: "v2.8", RktPullDocker: false},
+				Image:           api.Image{Repo: "quay.io/uswitch/kiam", Tag: "v2.8", RktPullDocker: false},
 				SessionDuration: "15m",
-				ServerAddresses: clusterapi.KIAMServerAddresses{ServerAddress: "localhost:443", AgentAddress: "kiam-server:443"},
+				ServerAddresses: api.KIAMServerAddresses{ServerAddress: "localhost:443", AgentAddress: "kiam-server:443"},
 			},
-			Kube2IamSupport: clusterapi.Kube2IamSupport{
+			Kube2IamSupport: api.Kube2IamSupport{
 				Enabled: false,
 			},
-			GpuSupport: clusterapi.GpuSupport{
+			GpuSupport: api.GpuSupport{
 				Enabled:      false,
 				Version:      "",
 				InstallImage: "shelmangroup/coreos-nvidia-driver-installer:latest",
 			},
-			LoadBalancer: clusterapi.LoadBalancer{
+			LoadBalancer: api.LoadBalancer{
 				Enabled: false,
 			},
-			Oidc: clusterapi.Oidc{
+			Oidc: api.Oidc{
 				Enabled:       false,
 				IssuerUrl:     "https://accounts.google.com",
 				ClientId:      "kubernetes",
 				UsernameClaim: "email",
 				GroupsClaim:   "groups",
 			},
-			NodeDrainer: clusterapi.NodeDrainer{
+			NodeDrainer: api.NodeDrainer{
 				Enabled:      false,
 				DrainTimeout: 5,
 			},
@@ -198,18 +195,18 @@ func TestMainClusterConfig(t *testing.T) {
 	}
 
 	hasDefaultLaunchSpecifications := func(c *config.Config, t *testing.T) {
-		expected := []clusterapi.LaunchSpecification{
+		expected := []api.LaunchSpecification{
 			{
 				WeightedCapacity: 1,
 				InstanceType:     "c4.large",
 				SpotPrice:        "",
-				RootVolume:       clusterapi.NewGp2RootVolume(30),
+				RootVolume:       api.NewGp2RootVolume(30),
 			},
 			{
 				WeightedCapacity: 2,
 				InstanceType:     "c4.xlarge",
 				SpotPrice:        "",
-				RootVolume:       clusterapi.NewGp2RootVolume(60),
+				RootVolume:       api.NewGp2RootVolume(60),
 			},
 		}
 		p := c.NodePools[0]
@@ -373,7 +370,7 @@ func TestMainClusterConfig(t *testing.T) {
 	}
 
 	hasDefaultCluster := func(c *root.Cluster, t *testing.T) {
-		assets, err := c.Assets()
+		assets, err := c.EnsureAllAssetsGenerated()
 		if err != nil {
 			t.Errorf("failed to list assets: %v", err)
 			t.FailNow()
@@ -383,10 +380,10 @@ func TestMainClusterConfig(t *testing.T) {
 			cluster := kubeAwsSettings.clusterName
 			stack := kubeAwsSettings.clusterName
 			file := "stack.json"
-			expected := clusterapi.Asset{
+			expected := api.Asset{
 				Content: "",
-				AssetLocation: clusterapi.AssetLocation{
-					ID:     clusterapi.NewAssetID(stack, file),
+				AssetLocation: api.AssetLocation{
+					ID:     api.NewAssetID(stack, file),
 					Bucket: s3Bucket,
 					Key:    s3Dir + "/kube-aws/clusters/" + cluster + "/exported/stacks/" + stack + "/" + file,
 					Path:   stack + "/stack.json",
@@ -416,10 +413,10 @@ func TestMainClusterConfig(t *testing.T) {
 			cluster := kubeAwsSettings.clusterName
 			stack := "control-plane"
 			file := "stack.json"
-			expected := clusterapi.Asset{
+			expected := api.Asset{
 				Content: builtin.String("stack-templates/control-plane.json.tmpl"),
-				AssetLocation: clusterapi.AssetLocation{
-					ID:     clusterapi.NewAssetID(stack, file),
+				AssetLocation: api.AssetLocation{
+					ID:     api.NewAssetID(stack, file),
 					Bucket: s3Bucket,
 					Key:    s3Dir + "/kube-aws/clusters/" + cluster + "/exported/stacks/" + stack + "/" + file,
 					Path:   stack + "/stack.json",
@@ -479,18 +476,18 @@ worker:
 				hasDefaultEtcdSettings,
 				asgBasedNodePoolHasWaitSignalEnabled,
 				func(c *config.Config, t *testing.T) {
-					expected := clusterapi.Addons{
-						Rescheduler: clusterapi.Rescheduler{
+					expected := api.Addons{
+						Rescheduler: api.Rescheduler{
 							Enabled: true,
 						},
-						ClusterAutoscaler: clusterapi.ClusterAutoscalerSupport{
+						ClusterAutoscaler: api.ClusterAutoscalerSupport{
 							Enabled: true,
 							Options: map[string]string{"v": "5", "test": "present"},
 						},
-						MetricsServer: clusterapi.MetricsServer{
+						MetricsServer: api.MetricsServer{
 							Enabled: true,
 						},
-						APIServerAggregator: clusterapi.APIServerAggregator{
+						APIServerAggregator: api.APIServerAggregator{
 							Enabled: true,
 						},
 					}
@@ -811,44 +808,40 @@ etcd:
 `,
 			assertConfig: []ConfigTester{
 				func(c *config.Config, t *testing.T) {
-					subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
+					subnet1 := api.NewPublicSubnet(firstAz, "10.0.0.0/24")
 					subnet1.Name = "Subnet0"
-					expected := clusterapi.EtcdSettings{
-						Etcd: clusterapi.Etcd{
-							Cluster: clusterapi.EtcdCluster{
+					expected := api.EtcdSettings{
+						Etcd: api.Etcd{
+							Cluster: api.EtcdCluster{
 								MemberIdentityProvider: "eip",
 							},
-							EC2Instance: clusterapi.EC2Instance{
+							EC2Instance: api.EC2Instance{
 								Count:        1,
 								InstanceType: "t2.medium",
 								Tenancy:      "default",
-								RootVolume: clusterapi.RootVolume{
+								RootVolume: api.RootVolume{
 									Size: 30,
 									Type: "gp2",
 									IOPS: 0,
 								},
 							},
-							DataVolume: clusterapi.DataVolume{
+							DataVolume: api.DataVolume{
 								Size:      30,
 								Type:      "gp2",
 								IOPS:      0,
 								Ephemeral: false,
 							},
-							Subnets: clusterapi.Subnets{
+							Subnets: api.Subnets{
 								subnet1,
 							},
-							UserSuppliedArgs: clusterapi.UserSuppliedArgs{
-								QuotaBackendBytes: clusterapi.DefaultQuotaBackendBytes,
+							UserSuppliedArgs: api.UserSuppliedArgs{
+								QuotaBackendBytes: api.DefaultQuotaBackendBytes,
 							},
 						},
 					}
 					actual := c.EtcdSettings
-					if !reflect.DeepEqual(expected, actual) {
-						t.Errorf(
-							"EtcdSettings didn't match: expected=%v actual=%v",
-							expected,
-							actual,
-						)
+					if diff := cmp.Diff(actual, expected); diff != "" {
+						t.Errorf("EtcdSettings didn't match: %s", diff)
 					}
 
 					if !actual.NodeShouldHaveEIP() {
@@ -871,44 +864,40 @@ etcd:
 `,
 			assertConfig: []ConfigTester{
 				func(c *config.Config, t *testing.T) {
-					subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
+					subnet1 := api.NewPublicSubnet(firstAz, "10.0.0.0/24")
 					subnet1.Name = "Subnet0"
-					expected := clusterapi.EtcdSettings{
-						Etcd: clusterapi.Etcd{
-							EC2Instance: clusterapi.EC2Instance{
+					expected := api.EtcdSettings{
+						Etcd: api.Etcd{
+							EC2Instance: api.EC2Instance{
 								Count:        1,
 								InstanceType: "t2.medium",
-								RootVolume: clusterapi.RootVolume{
+								RootVolume: api.RootVolume{
 									Size: 30,
 									Type: "gp2",
 									IOPS: 0,
 								},
 								Tenancy: "default",
 							},
-							DataVolume: clusterapi.DataVolume{
+							DataVolume: api.DataVolume{
 								Size:      30,
 								Type:      "gp2",
 								IOPS:      0,
 								Ephemeral: false,
 							},
-							Cluster: clusterapi.EtcdCluster{
+							Cluster: api.EtcdCluster{
 								MemberIdentityProvider: "eni",
 							},
-							Subnets: clusterapi.Subnets{
+							Subnets: api.Subnets{
 								subnet1,
 							},
-							UserSuppliedArgs: clusterapi.UserSuppliedArgs{
-								QuotaBackendBytes: clusterapi.DefaultQuotaBackendBytes,
+							UserSuppliedArgs: api.UserSuppliedArgs{
+								QuotaBackendBytes: api.DefaultQuotaBackendBytes,
 							},
 						},
 					}
 					actual := c.EtcdSettings
-					if !reflect.DeepEqual(expected, actual) {
-						t.Errorf(
-							"EtcdSettings didn't match: expected=%v actual=%v",
-							expected,
-							actual,
-						)
+					if diff := cmp.Diff(actual, expected); diff != "" {
+						t.Errorf("EtcdSettings didn't match: %s", diff)
 					}
 
 					if !actual.NodeShouldHaveSecondaryENI() {
@@ -932,45 +921,41 @@ etcd:
 `,
 			assertConfig: []ConfigTester{
 				func(c *config.Config, t *testing.T) {
-					subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
+					subnet1 := api.NewPublicSubnet(firstAz, "10.0.0.0/24")
 					subnet1.Name = "Subnet0"
-					expected := clusterapi.EtcdSettings{
-						Etcd: clusterapi.Etcd{
-							Cluster: clusterapi.EtcdCluster{
+					expected := api.EtcdSettings{
+						Etcd: api.Etcd{
+							Cluster: api.EtcdCluster{
 								MemberIdentityProvider: "eni",
 								InternalDomainName:     "internal.example.com",
 							},
-							EC2Instance: clusterapi.EC2Instance{
+							EC2Instance: api.EC2Instance{
 								Count:        1,
 								InstanceType: "t2.medium",
-								RootVolume: clusterapi.RootVolume{
+								RootVolume: api.RootVolume{
 									Size: 30,
 									Type: "gp2",
 									IOPS: 0,
 								},
 								Tenancy: "default",
 							},
-							DataVolume: clusterapi.DataVolume{
+							DataVolume: api.DataVolume{
 								Size:      30,
 								Type:      "gp2",
 								IOPS:      0,
 								Ephemeral: false,
 							},
-							Subnets: clusterapi.Subnets{
+							Subnets: api.Subnets{
 								subnet1,
 							},
-							UserSuppliedArgs: clusterapi.UserSuppliedArgs{
-								QuotaBackendBytes: clusterapi.DefaultQuotaBackendBytes,
+							UserSuppliedArgs: api.UserSuppliedArgs{
+								QuotaBackendBytes: api.DefaultQuotaBackendBytes,
 							},
 						},
 					}
 					actual := c.EtcdSettings
-					if !reflect.DeepEqual(expected, actual) {
-						t.Errorf(
-							"EtcdSettings didn't match: expected=%v actual=%v",
-							expected,
-							actual,
-						)
+					if diff := cmp.Diff(actual, expected); diff != "" {
+						t.Errorf("EtcdSettings didn't match: %s", diff)
 					}
 
 					if !actual.NodeShouldHaveSecondaryENI() {
@@ -998,56 +983,52 @@ etcd:
 `,
 			assertConfig: []ConfigTester{
 				func(c *config.Config, t *testing.T) {
-					subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
+					subnet1 := api.NewPublicSubnet(firstAz, "10.0.0.0/24")
 					subnet1.Name = "Subnet0"
-					expected := clusterapi.EtcdSettings{
-						Etcd: clusterapi.Etcd{
-							Cluster: clusterapi.EtcdCluster{
+					expected := api.EtcdSettings{
+						Etcd: api.Etcd{
+							Cluster: api.EtcdCluster{
 								MemberIdentityProvider: "eni",
 								InternalDomainName:     "internal.example.com",
 							},
-							EC2Instance: clusterapi.EC2Instance{
+							EC2Instance: api.EC2Instance{
 								Count:        1,
 								InstanceType: "t2.medium",
-								RootVolume: clusterapi.RootVolume{
+								RootVolume: api.RootVolume{
 									Size: 30,
 									Type: "gp2",
 									IOPS: 0,
 								},
 								Tenancy: "default",
 							},
-							DataVolume: clusterapi.DataVolume{
+							DataVolume: api.DataVolume{
 								Size:      30,
 								Type:      "gp2",
 								IOPS:      0,
 								Ephemeral: false,
 							},
-							Nodes: []clusterapi.EtcdNode{
-								clusterapi.EtcdNode{
+							Nodes: []api.EtcdNode{
+								api.EtcdNode{
 									FQDN: "etcd1a.internal.example.com",
 								},
-								clusterapi.EtcdNode{
+								api.EtcdNode{
 									FQDN: "etcd1b.internal.example.com",
 								},
-								clusterapi.EtcdNode{
+								api.EtcdNode{
 									FQDN: "etcd1c.internal.example.com",
 								},
 							},
-							Subnets: clusterapi.Subnets{
+							Subnets: api.Subnets{
 								subnet1,
 							},
-							UserSuppliedArgs: clusterapi.UserSuppliedArgs{
-								QuotaBackendBytes: clusterapi.DefaultQuotaBackendBytes,
+							UserSuppliedArgs: api.UserSuppliedArgs{
+								QuotaBackendBytes: api.DefaultQuotaBackendBytes,
 							},
 						},
 					}
 					actual := c.EtcdSettings
-					if !reflect.DeepEqual(expected, actual) {
-						t.Errorf(
-							"EtcdSettings didn't match: expected=%v actual=%v",
-							expected,
-							actual,
-						)
+					if diff := cmp.Diff(actual, expected); diff != "" {
+						t.Errorf("EtcdSettings didn't match: %s", diff)
 					}
 
 					if !actual.NodeShouldHaveSecondaryENI() {
@@ -1075,56 +1056,52 @@ etcd:
 `,
 			assertConfig: []ConfigTester{
 				func(c *config.Config, t *testing.T) {
-					subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
+					subnet1 := api.NewPublicSubnet(firstAz, "10.0.0.0/24")
 					subnet1.Name = "Subnet0"
-					expected := clusterapi.EtcdSettings{
-						Etcd: clusterapi.Etcd{
-							Cluster: clusterapi.EtcdCluster{
+					expected := api.EtcdSettings{
+						Etcd: api.Etcd{
+							Cluster: api.EtcdCluster{
 								MemberIdentityProvider: "eni",
 								InternalDomainName:     "internal.example.com",
 							},
-							EC2Instance: clusterapi.EC2Instance{
+							EC2Instance: api.EC2Instance{
 								Count:        1,
 								InstanceType: "t2.medium",
-								RootVolume: clusterapi.RootVolume{
+								RootVolume: api.RootVolume{
 									Size: 30,
 									Type: "gp2",
 									IOPS: 0,
 								},
 								Tenancy: "default",
 							},
-							DataVolume: clusterapi.DataVolume{
+							DataVolume: api.DataVolume{
 								Size:      30,
 								Type:      "gp2",
 								IOPS:      0,
 								Ephemeral: false,
 							},
-							Nodes: []clusterapi.EtcdNode{
-								clusterapi.EtcdNode{
+							Nodes: []api.EtcdNode{
+								api.EtcdNode{
 									Name: "etcd1a",
 								},
-								clusterapi.EtcdNode{
+								api.EtcdNode{
 									Name: "etcd1b",
 								},
-								clusterapi.EtcdNode{
+								api.EtcdNode{
 									Name: "etcd1c",
 								},
 							},
-							Subnets: clusterapi.Subnets{
+							Subnets: api.Subnets{
 								subnet1,
 							},
-							UserSuppliedArgs: clusterapi.UserSuppliedArgs{
-								QuotaBackendBytes: clusterapi.DefaultQuotaBackendBytes,
+							UserSuppliedArgs: api.UserSuppliedArgs{
+								QuotaBackendBytes: api.DefaultQuotaBackendBytes,
 							},
 						},
 					}
 					actual := c.EtcdSettings
-					if !reflect.DeepEqual(expected, actual) {
-						t.Errorf(
-							"EtcdSettings didn't match: expected=%v actual=%v",
-							expected,
-							actual,
-						)
+					if diff := cmp.Diff(actual, expected); diff != "" {
+						t.Errorf("EtcdSettings didn't match: %s", diff)
 					}
 
 					if !actual.NodeShouldHaveSecondaryENI() {
@@ -1153,58 +1130,54 @@ etcd:
 `,
 			assertConfig: []ConfigTester{
 				func(c *config.Config, t *testing.T) {
-					subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
+					subnet1 := api.NewPublicSubnet(firstAz, "10.0.0.0/24")
 					subnet1.Name = "Subnet0"
 					manageRecordSets := false
-					expected := clusterapi.EtcdSettings{
-						Etcd: clusterapi.Etcd{
-							Cluster: clusterapi.EtcdCluster{
+					expected := api.EtcdSettings{
+						Etcd: api.Etcd{
+							Cluster: api.EtcdCluster{
 								ManageRecordSets:       &manageRecordSets,
 								MemberIdentityProvider: "eni",
 								InternalDomainName:     "internal.example.com",
 							},
-							EC2Instance: clusterapi.EC2Instance{
+							EC2Instance: api.EC2Instance{
 								Count:        1,
 								InstanceType: "t2.medium",
-								RootVolume: clusterapi.RootVolume{
+								RootVolume: api.RootVolume{
 									Size: 30,
 									Type: "gp2",
 									IOPS: 0,
 								},
 								Tenancy: "default",
 							},
-							DataVolume: clusterapi.DataVolume{
+							DataVolume: api.DataVolume{
 								Size:      30,
 								Type:      "gp2",
 								IOPS:      0,
 								Ephemeral: false,
 							},
-							Nodes: []clusterapi.EtcdNode{
-								clusterapi.EtcdNode{
+							Nodes: []api.EtcdNode{
+								api.EtcdNode{
 									Name: "etcd1a",
 								},
-								clusterapi.EtcdNode{
+								api.EtcdNode{
 									Name: "etcd1b",
 								},
-								clusterapi.EtcdNode{
+								api.EtcdNode{
 									Name: "etcd1c",
 								},
 							},
-							Subnets: clusterapi.Subnets{
+							Subnets: api.Subnets{
 								subnet1,
 							},
-							UserSuppliedArgs: clusterapi.UserSuppliedArgs{
-								QuotaBackendBytes: clusterapi.DefaultQuotaBackendBytes,
+							UserSuppliedArgs: api.UserSuppliedArgs{
+								QuotaBackendBytes: api.DefaultQuotaBackendBytes,
 							},
 						},
 					}
 					actual := c.EtcdSettings
-					if !reflect.DeepEqual(expected, actual) {
-						t.Errorf(
-							"EtcdSettings didn't match: expected=%v actual=%v",
-							expected,
-							actual,
-						)
+					if diff := cmp.Diff(actual, expected); diff != "" {
+						t.Errorf("EtcdSettings didn't match: %s", diff)
 					}
 
 					if !actual.NodeShouldHaveSecondaryENI() {
@@ -1234,57 +1207,53 @@ etcd:
 `,
 			assertConfig: []ConfigTester{
 				func(c *config.Config, t *testing.T) {
-					subnet1 := clusterapi.NewPublicSubnet(firstAz, "10.0.0.0/24")
+					subnet1 := api.NewPublicSubnet(firstAz, "10.0.0.0/24")
 					subnet1.Name = "Subnet0"
-					expected := clusterapi.EtcdSettings{
-						Etcd: clusterapi.Etcd{
-							Cluster: clusterapi.EtcdCluster{
-								HostedZone:             clusterapi.Identifier{ID: "hostedzone-abcdefg"},
+					expected := api.EtcdSettings{
+						Etcd: api.Etcd{
+							Cluster: api.EtcdCluster{
+								HostedZone:             api.Identifier{ID: "hostedzone-abcdefg"},
 								MemberIdentityProvider: "eni",
 								InternalDomainName:     "internal.example.com",
 							},
-							EC2Instance: clusterapi.EC2Instance{
+							EC2Instance: api.EC2Instance{
 								Count:        1,
 								InstanceType: "t2.medium",
-								RootVolume: clusterapi.RootVolume{
+								RootVolume: api.RootVolume{
 									Size: 30,
 									Type: "gp2",
 									IOPS: 0,
 								},
 								Tenancy: "default",
 							},
-							DataVolume: clusterapi.DataVolume{
+							DataVolume: api.DataVolume{
 								Size:      30,
 								Type:      "gp2",
 								IOPS:      0,
 								Ephemeral: false,
 							},
-							Nodes: []clusterapi.EtcdNode{
-								clusterapi.EtcdNode{
+							Nodes: []api.EtcdNode{
+								api.EtcdNode{
 									Name: "etcd1a",
 								},
-								clusterapi.EtcdNode{
+								api.EtcdNode{
 									Name: "etcd1b",
 								},
-								clusterapi.EtcdNode{
+								api.EtcdNode{
 									Name: "etcd1c",
 								},
 							},
-							Subnets: clusterapi.Subnets{
+							Subnets: api.Subnets{
 								subnet1,
 							},
-							UserSuppliedArgs: clusterapi.UserSuppliedArgs{
-								QuotaBackendBytes: clusterapi.DefaultQuotaBackendBytes,
+							UserSuppliedArgs: api.UserSuppliedArgs{
+								QuotaBackendBytes: api.DefaultQuotaBackendBytes,
 							},
 						},
 					}
 					actual := c.EtcdSettings
-					if !reflect.DeepEqual(expected, actual) {
-						t.Errorf(
-							"EtcdSettings didn't match: expected=%v actual=%v",
-							expected,
-							actual,
-						)
+					if diff := cmp.Diff(actual, expected); diff != "" {
+						t.Errorf("EtcdSettings didn't match: %s", diff)
 					}
 
 					if !actual.NodeShouldHaveSecondaryENI() {
@@ -1381,98 +1350,98 @@ worker:
 				hasDefaultEtcdSettings,
 				asgBasedNodePoolHasWaitSignalEnabled,
 				func(c *config.Config, t *testing.T) {
-					expected := clusterapi.Experimental{
-						Admission: clusterapi.Admission{
-							PodSecurityPolicy: clusterapi.PodSecurityPolicy{
+					expected := api.Experimental{
+						Admission: api.Admission{
+							PodSecurityPolicy: api.PodSecurityPolicy{
 								Enabled: true,
 							},
-							AlwaysPullImages: clusterapi.AlwaysPullImages{
+							AlwaysPullImages: api.AlwaysPullImages{
 								Enabled: true,
 							},
-							DenyEscalatingExec: clusterapi.DenyEscalatingExec{
+							DenyEscalatingExec: api.DenyEscalatingExec{
 								Enabled: true,
 							},
-							Priority: clusterapi.Priority{
+							Priority: api.Priority{
 								Enabled: true,
 							},
-							MutatingAdmissionWebhook: clusterapi.MutatingAdmissionWebhook{
+							MutatingAdmissionWebhook: api.MutatingAdmissionWebhook{
 								Enabled: true,
 							},
-							ValidatingAdmissionWebhook: clusterapi.ValidatingAdmissionWebhook{
+							ValidatingAdmissionWebhook: api.ValidatingAdmissionWebhook{
 								Enabled: true,
 							},
-							PersistentVolumeClaimResize: clusterapi.PersistentVolumeClaimResize{
+							PersistentVolumeClaimResize: api.PersistentVolumeClaimResize{
 								Enabled: true,
 							},
 						},
-						AuditLog: clusterapi.AuditLog{
+						AuditLog: api.AuditLog{
 							Enabled:   true,
 							LogPath:   "/var/log/audit.log",
 							MaxAge:    100,
 							MaxBackup: 10,
 							MaxSize:   5,
 						},
-						Authentication: clusterapi.Authentication{
-							Webhook: clusterapi.Webhook{
+						Authentication: api.Authentication{
+							Webhook: api.Webhook{
 								Enabled:  true,
 								CacheTTL: "1234s",
 								Config:   "e30k",
 							},
 						},
-						AwsEnvironment: clusterapi.AwsEnvironment{
+						AwsEnvironment: api.AwsEnvironment{
 							Enabled: true,
 							Environment: map[string]string{
 								"CFNSTACK": `{ "Ref" : "AWS::StackId" }`,
 							},
 						},
-						AwsNodeLabels: clusterapi.AwsNodeLabels{
+						AwsNodeLabels: api.AwsNodeLabels{
 							Enabled: true,
 						},
-						ClusterAutoscalerSupport: clusterapi.ClusterAutoscalerSupport{
+						ClusterAutoscalerSupport: api.ClusterAutoscalerSupport{
 							Enabled: true,
 							Options: map[string]string{},
 						},
-						TLSBootstrap: clusterapi.TLSBootstrap{
+						TLSBootstrap: api.TLSBootstrap{
 							Enabled: true,
 						},
-						EphemeralImageStorage: clusterapi.EphemeralImageStorage{
+						EphemeralImageStorage: api.EphemeralImageStorage{
 							Enabled:    true,
 							Disk:       "xvdb",
 							Filesystem: "xfs",
 						},
-						KIAMSupport: clusterapi.KIAMSupport{
+						KIAMSupport: api.KIAMSupport{
 							Enabled:         false,
-							Image:           clusterapi.Image{Repo: "quay.io/uswitch/kiam", Tag: "v2.8", RktPullDocker: false},
+							Image:           api.Image{Repo: "quay.io/uswitch/kiam", Tag: "v2.8", RktPullDocker: false},
 							SessionDuration: "15m",
-							ServerAddresses: clusterapi.KIAMServerAddresses{ServerAddress: "localhost:443", AgentAddress: "kiam-server:443"},
+							ServerAddresses: api.KIAMServerAddresses{ServerAddress: "localhost:443", AgentAddress: "kiam-server:443"},
 						},
-						Kube2IamSupport: clusterapi.Kube2IamSupport{
+						Kube2IamSupport: api.Kube2IamSupport{
 							Enabled: true,
 						},
-						GpuSupport: clusterapi.GpuSupport{
+						GpuSupport: api.GpuSupport{
 							Enabled:      true,
 							Version:      "375.66",
 							InstallImage: "shelmangroup/coreos-nvidia-driver-installer:latest",
 						},
 						KubeletOpts: "--image-gc-low-threshold 60 --image-gc-high-threshold 70",
-						LoadBalancer: clusterapi.LoadBalancer{
+						LoadBalancer: api.LoadBalancer{
 							Enabled:          true,
 							Names:            []string{"manuallymanagedlb"},
 							SecurityGroupIds: []string{"sg-12345678"},
 						},
-						TargetGroup: clusterapi.TargetGroup{
+						TargetGroup: api.TargetGroup{
 							Enabled:          true,
 							Arns:             []string{"arn:aws:elasticloadbalancing:eu-west-1:xxxxxxxxxxxx:targetgroup/manuallymanagedetg/xxxxxxxxxxxxxxxx"},
 							SecurityGroupIds: []string{"sg-12345678"},
 						},
-						Oidc: clusterapi.Oidc{
+						Oidc: api.Oidc{
 							Enabled:       true,
 							IssuerUrl:     "https://accounts.google.com",
 							ClientId:      "kubernetes",
 							UsernameClaim: "email",
 							GroupsClaim:   "groups",
 						},
-						NodeDrainer: clusterapi.NodeDrainer{
+						NodeDrainer: api.NodeDrainer{
 							Enabled:      true,
 							DrainTimeout: 3,
 						},
@@ -1495,7 +1464,7 @@ worker:
 				hasDefaultCluster,
 				func(c *root.Cluster, t *testing.T) {
 					cp := c.ControlPlane()
-					controllerUserdataS3Part := cp.UserData["Controller"].Parts[clusterapi.USERDATA_S3].Asset.Content
+					controllerUserdataS3Part := cp.UserData["Controller"].Parts[api.USERDATA_S3].Asset.Content
 					if !strings.Contains(controllerUserdataS3Part, `--feature-gates=PodPriority=true`) {
 						t.Error("missing controller feature gate: PodPriority=true")
 					}
@@ -1569,42 +1538,42 @@ worker:
 				hasDefaultEtcdSettings,
 				asgBasedNodePoolHasWaitSignalEnabled,
 				func(c *config.Config, t *testing.T) {
-					expected := clusterapi.Experimental{
-						AwsEnvironment: clusterapi.AwsEnvironment{
+					expected := api.Experimental{
+						AwsEnvironment: api.AwsEnvironment{
 							Enabled: true,
 							Environment: map[string]string{
 								"CFNSTACK": `{ "Ref" : "AWS::StackId" }`,
 							},
 						},
-						AwsNodeLabels: clusterapi.AwsNodeLabels{
+						AwsNodeLabels: api.AwsNodeLabels{
 							Enabled: true,
 						},
-						ClusterAutoscalerSupport: clusterapi.ClusterAutoscalerSupport{
+						ClusterAutoscalerSupport: api.ClusterAutoscalerSupport{
 							Enabled: true,
 							Options: map[string]string{},
 						},
-						TLSBootstrap: clusterapi.TLSBootstrap{
+						TLSBootstrap: api.TLSBootstrap{
 							Enabled: false,
 						},
-						EphemeralImageStorage: clusterapi.EphemeralImageStorage{
+						EphemeralImageStorage: api.EphemeralImageStorage{
 							Enabled:    true,
 							Disk:       "xvdb",
 							Filesystem: "xfs",
 						},
-						Kube2IamSupport: clusterapi.Kube2IamSupport{
+						Kube2IamSupport: api.Kube2IamSupport{
 							Enabled: true,
 						},
-						LoadBalancer: clusterapi.LoadBalancer{
+						LoadBalancer: api.LoadBalancer{
 							Enabled:          true,
 							Names:            []string{"manuallymanagedlb"},
 							SecurityGroupIds: []string{"sg-12345678"},
 						},
-						TargetGroup: clusterapi.TargetGroup{
+						TargetGroup: api.TargetGroup{
 							Enabled:          true,
 							Arns:             []string{"arn:aws:elasticloadbalancing:eu-west-1:xxxxxxxxxxxx:targetgroup/manuallymanagedetg/xxxxxxxxxxxxxxxx"},
 							SecurityGroupIds: []string{"sg-12345678"},
 						},
-						NodeDrainer: clusterapi.NodeDrainer{
+						NodeDrainer: api.NodeDrainer{
 							Enabled:      false,
 							DrainTimeout: 0,
 						},
@@ -1614,7 +1583,7 @@ worker:
 						t.Errorf("experimental settings for node pool didn't match : expected=%v actual=%v", expected, p.Experimental)
 					}
 
-					expectedNodeLabels := clusterapi.NodeLabels{
+					expectedNodeLabels := api.NodeLabels{
 						"kube-aws.coreos.com/cluster-autoscaler-supported": "true",
 						"kube-aws.coreos.com/role":                         "worker",
 					}
@@ -1623,7 +1592,7 @@ worker:
 						t.Errorf("worker node labels didn't match: expected=%v, actual=%v", expectedNodeLabels, actualNodeLabels)
 					}
 
-					expectedTaints := clusterapi.Taints{
+					expectedTaints := api.Taints{
 						{Key: "reservation", Value: "spot", Effect: "NoSchedule"},
 					}
 					actualTaints := c.NodePools[0].Taints
@@ -1652,11 +1621,11 @@ worker:
 `,
 			assertConfig: []ConfigTester{
 				func(c *config.Config, t *testing.T) {
-					expected := clusterapi.KIAMSupport{
+					expected := api.KIAMSupport{
 						Enabled:         true,
-						Image:           clusterapi.Image{Repo: "quay.io/uswitch/kiam", Tag: "v2.6", RktPullDocker: false},
+						Image:           api.Image{Repo: "quay.io/uswitch/kiam", Tag: "v2.6", RktPullDocker: false},
 						SessionDuration: "30m",
-						ServerAddresses: clusterapi.KIAMServerAddresses{ServerAddress: "localhost", AgentAddress: "kiam-server"},
+						ServerAddresses: api.KIAMServerAddresses{ServerAddress: "localhost", AgentAddress: "kiam-server"},
 					}
 
 					actual := c.Experimental
@@ -1683,12 +1652,12 @@ worker:
 `,
 			assertConfig: []ConfigTester{
 				func(c *config.Config, t *testing.T) {
-					expected := clusterapi.Experimental{
-						KIAMSupport: clusterapi.KIAMSupport{
+					expected := api.Experimental{
+						KIAMSupport: api.KIAMSupport{
 							Enabled:         true,
-							Image:           clusterapi.Image{Repo: "quay.io/uswitch/kiam", Tag: "v2.8", RktPullDocker: false},
+							Image:           api.Image{Repo: "quay.io/uswitch/kiam", Tag: "v2.8", RktPullDocker: false},
 							SessionDuration: "15m",
-							ServerAddresses: clusterapi.KIAMServerAddresses{ServerAddress: "localhost:443", AgentAddress: "kiam-server:443"},
+							ServerAddresses: api.KIAMServerAddresses{ServerAddress: "localhost:443", AgentAddress: "kiam-server:443"},
 						},
 					}
 					p := c.NodePools[0]
@@ -2101,19 +2070,30 @@ apiEndpoints:
 				func(rootCluster *root.Cluster, t *testing.T) {
 					c := rootCluster.ControlPlane().Config
 
-					private1 := clusterapi.NewPrivateSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-PrivateSubnet1"}}`)
+					private1 := api.NewPrivateSubnet("us-west-1a", "10.0.1.0/24")
 					private1.Name = "privateSubnet1"
 
-					private2 := clusterapi.NewPrivateSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-PrivateSubnet2"}}`)
+					private2 := api.NewPrivateSubnet("us-west-1b", "10.0.2.0/24")
 					private2.Name = "privateSubnet2"
 
-					public1 := clusterapi.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-PublicSubnet1"}}`)
+					public1 := api.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
 					public1.Name = "publicSubnet1"
 
-					public2 := clusterapi.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-PublicSubnet2"}}`)
+					public2 := api.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
 					public2.Name = "publicSubnet2"
+					//private1 := api.NewPrivateSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-PrivateSubnet1"}}`)
+					//private1.Name = "privateSubnet1"
+					//
+					//private2 := api.NewPrivateSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-PrivateSubnet2"}}`)
+					//private2.Name = "privateSubnet2"
+					//
+					//public1 := api.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-PublicSubnet1"}}`)
+					//public1.Name = "publicSubnet1"
+					//
+					//public2 := api.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-PublicSubnet2"}}`)
+					//public2.Name = "publicSubnet2"
 
-					subnets := clusterapi.Subnets{
+					subnets := api.Subnets{
 						private1,
 						private2,
 						public1,
@@ -2123,12 +2103,12 @@ apiEndpoints:
 						t.Errorf("Managed subnets didn't match: expected=%+v actual=%+v", subnets, c.AllSubnets())
 					}
 
-					publicSubnets := clusterapi.Subnets{
+					publicSubnets := api.Subnets{
 						public1,
 						public2,
 					}
 
-					privateSubnets := clusterapi.Subnets{
+					privateSubnets := api.Subnets{
 						private1,
 						private2,
 					}
@@ -2156,29 +2136,29 @@ apiEndpoints:
 						t.Errorf("unversionedPrivate: it should be enabled as the lb to which controller nodes are added, but it was not: loadBalancer=%+v", unversionedPrivate.LoadBalancer)
 					}
 
-					if !reflect.DeepEqual(versionedPublic.LoadBalancer.Subnets, clusterapi.Subnets{public1}) {
-						t.Errorf("versionedPublic: subnets didn't match: expected=%+v actual=%+v", clusterapi.Subnets{public1}, versionedPublic.LoadBalancer.Subnets)
+					if diff := cmp.Diff(versionedPublic.LoadBalancer.Subnets, api.Subnets{public1}); diff != "" {
+						t.Errorf("versionedPublic: subnets didn't match: %s", diff)
 					}
 					if !versionedPublic.LoadBalancer.Enabled() {
 						t.Errorf("versionedPublic: it should be enabled as the lb to which controller nodes are added, but it was not: loadBalancer=%+v", versionedPublic.LoadBalancer)
 					}
 
-					if !reflect.DeepEqual(versionedPrivate.LoadBalancer.Subnets, clusterapi.Subnets{private1}) {
-						t.Errorf("versionedPrivate: subnets didn't match: expected=%+v actual=%+v", clusterapi.Subnets{private1}, versionedPrivate.LoadBalancer.Subnets)
+					if diff := cmp.Diff(versionedPrivate.LoadBalancer.Subnets, api.Subnets{private1}); diff != "" {
+						t.Errorf("versionedPrivate: subnets didn't match: %s", diff)
 					}
 					if !versionedPrivate.LoadBalancer.Enabled() {
 						t.Errorf("versionedPrivate: it should be enabled as the lb to which controller nodes are added, but it was not: loadBalancer=%+v", versionedPrivate.LoadBalancer)
 					}
 
-					if !reflect.DeepEqual(versionedPublicAlt.LoadBalancer.Subnets, publicSubnets) {
-						t.Errorf("versionedPublicAlt: subnets didn't match: expected=%+v actual=%+v", publicSubnets, versionedPublicAlt.LoadBalancer.Subnets)
+					if diff := cmp.Diff(versionedPublicAlt.LoadBalancer.Subnets, publicSubnets); diff != "" {
+						t.Errorf("versionedPublicAlt: subnets didn't match: %s", diff)
 					}
 					if !versionedPublicAlt.LoadBalancer.Enabled() {
 						t.Errorf("versionedPublicAlt: it should be enabled as the lb to which controller nodes are added, but it was not: loadBalancer=%+v", versionedPublicAlt.LoadBalancer)
 					}
 
-					if !reflect.DeepEqual(versionedPrivateAlt.LoadBalancer.Subnets, privateSubnets) {
-						t.Errorf("versionedPrivateAlt: subnets didn't match: expected=%+v actual=%+v", privateSubnets, versionedPrivateAlt.LoadBalancer.Subnets)
+					if diff := cmp.Diff(versionedPrivateAlt.LoadBalancer.Subnets, privateSubnets); diff != "" {
+						t.Errorf("versionedPrivateAlt: subnets didn't match: %s", diff)
 					}
 					if !versionedPrivateAlt.LoadBalancer.Enabled() {
 						t.Errorf("versionedPrivateAlt: it should be enabled as the lb to which controller nodes are added, but it was not: loadBalancer=%+v", versionedPrivateAlt.LoadBalancer)
@@ -2191,8 +2171,8 @@ apiEndpoints:
 						t.Errorf("addedToCertCommonNames: it should not be enabled as the lb to which controller nodes are added, but it was: loadBalancer=%+v", addedToCertCommonNames.LoadBalancer)
 					}
 
-					if !reflect.DeepEqual(elbOnly.LoadBalancer.Subnets, publicSubnets) {
-						t.Errorf("elbOnly: subnets didn't match: expected=%+v actual=%+v", publicSubnets, elbOnly.LoadBalancer.Subnets)
+					if diff := cmp.Diff(elbOnly.LoadBalancer.Subnets, publicSubnets); diff != "" {
+						t.Errorf("elbOnly: subnets didn't match: %s", diff)
 					}
 					if !elbOnly.LoadBalancer.Enabled() {
 						t.Errorf("elbOnly: it should be enabled but it was not: loadBalancer=%+v", elbOnly.LoadBalancer)
@@ -2201,8 +2181,8 @@ apiEndpoints:
 						t.Errorf("elbOnly: record set should not be managed but it was: loadBalancer=%+v", elbOnly.LoadBalancer)
 					}
 
-					if !reflect.DeepEqual(c.ExternalDNSNames(), []string{"api-alt.example.com", "api.example.com", "api.internal.example.com", "registerme.example.com", "v1api.example.com", "v1api.internal.example.com", "v1apialt.example.com", "v1apialt.internal.example.com"}) {
-						t.Errorf("unexpected external DNS names: %s", strings.Join(c.ExternalDNSNames(), ", "))
+					if diff := cmp.Diff(c.ExternalDNSNames(), []string{"api-alt.example.com", "api.example.com", "api.internal.example.com", "registerme.example.com", "v1api.example.com", "v1api.internal.example.com", "v1apialt.example.com", "v1apialt.internal.example.com"}); diff != "" {
+						t.Errorf("unexpected external DNS names: %s", diff)
 					}
 
 					if !reflect.DeepEqual(c.APIEndpoints.ManagedELBLogicalNames(), []string{"APIEndpointElbOnlyELB", "APIEndpointVersionedPrivateAltELB", "APIEndpointVersionedPrivateELB", "APIEndpointVersionedPublicAltELB", "APIEndpointVersionedPublicELB"}) {
@@ -2261,19 +2241,19 @@ worker:
 				everyPublicSubnetHasRouteToIGW,
 				hasTwoManagedNGWsAndEIPs,
 				func(c *config.Config, t *testing.T) {
-					private1 := clusterapi.NewPrivateSubnet("us-west-1a", "10.0.1.0/24")
+					private1 := api.NewPrivateSubnet("us-west-1a", "10.0.1.0/24")
 					private1.Name = "private1"
 
-					private2 := clusterapi.NewPrivateSubnet("us-west-1b", "10.0.2.0/24")
+					private2 := api.NewPrivateSubnet("us-west-1b", "10.0.2.0/24")
 					private2.Name = "private2"
 
-					public1 := clusterapi.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
+					public1 := api.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
 					public1.Name = "public1"
 
-					public2 := clusterapi.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
+					public2 := api.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
 					public2.Name = "public2"
 
-					subnets := clusterapi.Subnets{
+					subnets := api.Subnets{
 						private1,
 						private2,
 						public1,
@@ -2283,13 +2263,13 @@ worker:
 						t.Errorf("Managed subnets didn't match: expected=%v actual=%v", subnets, c.AllSubnets())
 					}
 
-					publicSubnets := clusterapi.Subnets{
+					publicSubnets := api.Subnets{
 						public1,
 						public2,
 					}
-					importedPublicSubnets := clusterapi.Subnets{
-						clusterapi.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public1"}}`),
-						clusterapi.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public2"}}`),
+					importedPublicSubnets := api.Subnets{
+						api.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public1"}}`),
+						api.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public2"}}`),
 					}
 
 					p := c.NodePools[0]
@@ -2297,7 +2277,7 @@ worker:
 						t.Errorf("Worker subnets didn't match: expected=%v actual=%v", importedPublicSubnets, p.Subnets)
 					}
 
-					privateSubnets := clusterapi.Subnets{
+					privateSubnets := api.Subnets{
 						private1,
 						private2,
 					}
@@ -2307,8 +2287,8 @@ worker:
 					if !reflect.DeepEqual(c.Controller.LoadBalancer.Subnets, publicSubnets) {
 						t.Errorf("Controller loadbalancer subnets didn't match: expected=%v actual=%v", publicSubnets, c.Controller.LoadBalancer.Subnets)
 					}
-					if !reflect.DeepEqual(c.Etcd.Subnets, privateSubnets) {
-						t.Errorf("Etcd subnets didn't match: expected=%v actual=%v", privateSubnets, c.Etcd.Subnets)
+					if diff := cmp.Diff(c.Etcd.Subnets, privateSubnets); diff != "" {
+						t.Errorf("Etcd subnets didn't match: %s", diff)
 					}
 
 					for i, s := range c.PrivateSubnets() {
@@ -2354,19 +2334,19 @@ subnets:
 				everyPublicSubnetHasRouteToIGW,
 				hasTwoManagedNGWsAndEIPs,
 				func(c *config.Config, t *testing.T) {
-					private1 := clusterapi.NewPrivateSubnet("us-west-1a", "10.0.1.0/24")
+					private1 := api.NewPrivateSubnet("us-west-1a", "10.0.1.0/24")
 					private1.Name = "private1"
 
-					private2 := clusterapi.NewPrivateSubnet("us-west-1b", "10.0.2.0/24")
+					private2 := api.NewPrivateSubnet("us-west-1b", "10.0.2.0/24")
 					private2.Name = "private2"
 
-					public1 := clusterapi.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
+					public1 := api.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
 					public1.Name = "public1"
 
-					public2 := clusterapi.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
+					public2 := api.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
 					public2.Name = "public2"
 
-					subnets := clusterapi.Subnets{
+					subnets := api.Subnets{
 						private1,
 						private2,
 						public1,
@@ -2376,7 +2356,7 @@ subnets:
 						t.Errorf("Managed subnets didn't match: expected=%v actual=%v", subnets, c.AllSubnets())
 					}
 
-					publicSubnets := clusterapi.Subnets{
+					publicSubnets := api.Subnets{
 						public1,
 						public2,
 					}
@@ -2450,19 +2430,19 @@ worker:
 				everyPublicSubnetHasRouteToIGW,
 				hasTwoManagedNGWsAndEIPs,
 				func(c *config.Config, t *testing.T) {
-					private1 := clusterapi.NewPrivateSubnet("us-west-1a", "10.0.1.0/24")
+					private1 := api.NewPrivateSubnet("us-west-1a", "10.0.1.0/24")
 					private1.Name = "private1"
 
-					private2 := clusterapi.NewPrivateSubnet("us-west-1b", "10.0.2.0/24")
+					private2 := api.NewPrivateSubnet("us-west-1b", "10.0.2.0/24")
 					private2.Name = "private2"
 
-					public1 := clusterapi.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
+					public1 := api.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
 					public1.Name = "public1"
 
-					public2 := clusterapi.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
+					public2 := api.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
 					public2.Name = "public2"
 
-					subnets := clusterapi.Subnets{
+					subnets := api.Subnets{
 						private1,
 						private2,
 						public1,
@@ -2472,16 +2452,16 @@ worker:
 						t.Errorf("Managed subnets didn't match: expected=%v actual=%v", subnets, c.AllSubnets())
 					}
 
-					importedPublicSubnets := clusterapi.Subnets{
-						clusterapi.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public1"}}`),
-						clusterapi.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public2"}}`),
+					importedPublicSubnets := api.Subnets{
+						api.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public1"}}`),
+						api.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public2"}}`),
 					}
 					p := c.NodePools[0]
 					if !reflect.DeepEqual(p.Subnets, importedPublicSubnets) {
 						t.Errorf("Worker subnets didn't match: expected=%v actual=%v", importedPublicSubnets, p.Subnets)
 					}
 
-					privateSubnets := clusterapi.Subnets{
+					privateSubnets := api.Subnets{
 						private1,
 						private2,
 					}
@@ -2551,35 +2531,35 @@ worker:
 				everyPublicSubnetHasRouteToIGW,
 				hasTwoManagedNGWsAndEIPs,
 				func(c *config.Config, t *testing.T) {
-					private1 := clusterapi.NewPrivateSubnet("us-west-1a", "10.0.1.0/24")
+					private1 := api.NewPrivateSubnet("us-west-1a", "10.0.1.0/24")
 					private1.Name = "private1"
 
-					private2 := clusterapi.NewPrivateSubnet("us-west-1b", "10.0.2.0/24")
+					private2 := api.NewPrivateSubnet("us-west-1b", "10.0.2.0/24")
 					private2.Name = "private2"
 
-					public1 := clusterapi.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
+					public1 := api.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
 					public1.Name = "public1"
 
-					public2 := clusterapi.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
+					public2 := api.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
 					public2.Name = "public2"
 
-					subnets := clusterapi.Subnets{
+					subnets := api.Subnets{
 						private1,
 						private2,
 						public1,
 						public2,
 					}
-					publicSubnets := clusterapi.Subnets{
+					publicSubnets := api.Subnets{
 						public1,
 						public2,
 					}
-					privateSubnets := clusterapi.Subnets{
+					privateSubnets := api.Subnets{
 						private1,
 						private2,
 					}
-					importedPublicSubnets := clusterapi.Subnets{
-						clusterapi.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public1"}}`),
-						clusterapi.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public2"}}`),
+					importedPublicSubnets := api.Subnets{
+						api.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public1"}}`),
+						api.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public2"}}`),
 					}
 
 					if !reflect.DeepEqual(c.AllSubnets(), subnets) {
@@ -2649,29 +2629,29 @@ worker:
 				hasDefaultExperimentalFeatures,
 				hasNoNGWsOrEIPsOrRoutes,
 				func(c *config.Config, t *testing.T) {
-					private1 := clusterapi.NewExistingPrivateSubnet("us-west-1a", "subnet-1")
+					private1 := api.NewExistingPrivateSubnet("us-west-1a", "subnet-1")
 					private1.Name = "private1"
 
-					private2 := clusterapi.NewImportedPrivateSubnet("us-west-1b", "mycluster-private-subnet-1")
+					private2 := api.NewImportedPrivateSubnet("us-west-1b", "mycluster-private-subnet-1")
 					private2.Name = "private2"
 
-					public1 := clusterapi.NewExistingPublicSubnet("us-west-1a", "subnet-2")
+					public1 := api.NewExistingPublicSubnet("us-west-1a", "subnet-2")
 					public1.Name = "public1"
 
-					public2 := clusterapi.NewImportedPublicSubnet("us-west-1b", "mycluster-public-subnet-1")
+					public2 := api.NewImportedPublicSubnet("us-west-1b", "mycluster-public-subnet-1")
 					public2.Name = "public2"
 
-					subnets := clusterapi.Subnets{
+					subnets := api.Subnets{
 						private1,
 						private2,
 						public1,
 						public2,
 					}
-					publicSubnets := clusterapi.Subnets{
+					publicSubnets := api.Subnets{
 						public1,
 						public2,
 					}
-					privateSubnets := clusterapi.Subnets{
+					privateSubnets := api.Subnets{
 						private1,
 						private2,
 					}
@@ -2815,52 +2795,52 @@ worker:
 				hasDefaultExperimentalFeatures,
 				hasNoManagedNGWsButSpecificNumOfRoutesToUnmanagedNGWs(2),
 				func(c *config.Config, t *testing.T) {
-					private1 := clusterapi.NewPrivateSubnetWithPreconfiguredNATGateway("us-west-1a", "10.0.1.0/24", "ngw-11111111")
+					private1 := api.NewPrivateSubnetWithPreconfiguredNATGateway("us-west-1a", "10.0.1.0/24", "ngw-11111111")
 					private1.Name = "private1"
 
-					private2 := clusterapi.NewPrivateSubnetWithPreconfiguredNATGateway("us-west-1b", "10.0.2.0/24", "ngw-22222222")
+					private2 := api.NewPrivateSubnetWithPreconfiguredNATGateway("us-west-1b", "10.0.2.0/24", "ngw-22222222")
 					private2.Name = "private2"
 
-					public1 := clusterapi.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
+					public1 := api.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
 					public1.Name = "public1"
 
-					public2 := clusterapi.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
+					public2 := api.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
 					public2.Name = "public2"
 
-					subnets := clusterapi.Subnets{
+					subnets := api.Subnets{
 						private1,
 						private2,
 						public1,
 						public2,
 					}
-					publicSubnets := clusterapi.Subnets{
+					publicSubnets := api.Subnets{
 						public1,
 						public2,
 					}
-					privateSubnets := clusterapi.Subnets{
+					privateSubnets := api.Subnets{
 						private1,
 						private2,
 					}
-					importedPublicSubnets := clusterapi.Subnets{
-						clusterapi.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public1"}}`),
-						clusterapi.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public2"}}`),
+					importedPublicSubnets := api.Subnets{
+						api.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public1"}}`),
+						api.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public2"}}`),
 					}
 
-					if !reflect.DeepEqual(c.AllSubnets(), subnets) {
-						t.Errorf("Managed subnets didn't match: expected=%v actual=%v", subnets, c.AllSubnets())
+					if diff := cmp.Diff(c.AllSubnets(), subnets); diff != "" {
+						t.Errorf("Managed subnets didn't match: %s", diff)
 					}
 					p := c.NodePools[0]
-					if !reflect.DeepEqual(p.Subnets, importedPublicSubnets) {
-						t.Errorf("Worker subnets didn't match: expected=%v actual=%v", importedPublicSubnets, p.Subnets)
+					if diff := cmp.Diff(p.Subnets, importedPublicSubnets); diff != "" {
+						t.Errorf("Worker subnets didn't match: %s", diff)
 					}
-					if !reflect.DeepEqual(c.Controller.Subnets, publicSubnets) {
-						t.Errorf("Controller subnets didn't match: expected=%v actual=%v", privateSubnets, c.Controller.Subnets)
+					if diff := cmp.Diff(c.Controller.Subnets, publicSubnets); diff != "" {
+						t.Errorf("Controller subnets didn't match: %s", diff)
 					}
-					if !reflect.DeepEqual(c.Controller.LoadBalancer.Subnets, publicSubnets) {
-						t.Errorf("Controller loadbalancer subnets didn't match: expected=%v actual=%v", privateSubnets, c.Controller.LoadBalancer.Subnets)
+					if diff := cmp.Diff(c.Controller.LoadBalancer.Subnets, publicSubnets); diff != "" {
+						t.Errorf("Controller loadbalancer subnets didn't match: %s", diff)
 					}
-					if !reflect.DeepEqual(c.Etcd.Subnets, privateSubnets) {
-						t.Errorf("Etcd subnets didn't match: expected=%v actual=%v", privateSubnets, c.Etcd.Subnets)
+					if diff := cmp.Diff(c.Etcd.Subnets, privateSubnets); diff != "" {
+						t.Errorf("Etcd subnets didn't match: %s", diff)
 					}
 
 					for i, s := range c.PrivateSubnets() {
@@ -2917,52 +2897,52 @@ worker:
 				hasSpecificNumOfManagedNGWsWithUnmanagedEIPs(2),
 				hasPrivateSubnetsWithManagedNGWs(2),
 				func(c *config.Config, t *testing.T) {
-					private1 := clusterapi.NewPrivateSubnetWithPreconfiguredNATGatewayEIP("us-west-1a", "10.0.1.0/24", "eipalloc-11111111")
+					private1 := api.NewPrivateSubnetWithPreconfiguredNATGatewayEIP("us-west-1a", "10.0.1.0/24", "eipalloc-11111111")
 					private1.Name = "private1"
 
-					private2 := clusterapi.NewPrivateSubnetWithPreconfiguredNATGatewayEIP("us-west-1b", "10.0.2.0/24", "eipalloc-22222222")
+					private2 := api.NewPrivateSubnetWithPreconfiguredNATGatewayEIP("us-west-1b", "10.0.2.0/24", "eipalloc-22222222")
 					private2.Name = "private2"
 
-					public1 := clusterapi.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
+					public1 := api.NewPublicSubnet("us-west-1a", "10.0.3.0/24")
 					public1.Name = "public1"
 
-					public2 := clusterapi.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
+					public2 := api.NewPublicSubnet("us-west-1b", "10.0.4.0/24")
 					public2.Name = "public2"
 
-					subnets := clusterapi.Subnets{
+					subnets := api.Subnets{
 						private1,
 						private2,
 						public1,
 						public2,
 					}
-					publicSubnets := clusterapi.Subnets{
+					publicSubnets := api.Subnets{
 						public1,
 						public2,
 					}
-					privateSubnets := clusterapi.Subnets{
+					privateSubnets := api.Subnets{
 						private1,
 						private2,
 					}
-					importedPublicSubnets := clusterapi.Subnets{
-						clusterapi.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public1"}}`),
-						clusterapi.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public2"}}`),
+					importedPublicSubnets := api.Subnets{
+						api.NewPublicSubnetFromFn("us-west-1a", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public1"}}`),
+						api.NewPublicSubnetFromFn("us-west-1b", `{"Fn::ImportValue":{"Fn::Sub":"${NetworkStackName}-Public2"}}`),
 					}
 
-					if !reflect.DeepEqual(c.AllSubnets(), subnets) {
-						t.Errorf("Managed subnets didn't match: expected=%v actual=%v", subnets, c.AllSubnets())
+					if diff := cmp.Diff(c.AllSubnets(), subnets); diff != "" {
+						t.Errorf("Managed subnets didn't match: %s", diff)
 					}
 					p := c.NodePools[0]
-					if !reflect.DeepEqual(p.Subnets, importedPublicSubnets) {
-						t.Errorf("Worker subnets didn't match: expected=%+v actual=%+v", importedPublicSubnets, p.Subnets)
+					if diff := cmp.Diff(p.Subnets, importedPublicSubnets); diff != "" {
+						t.Errorf("Worker subnets didn't match: %s", diff)
 					}
-					if !reflect.DeepEqual(c.Controller.Subnets, publicSubnets) {
-						t.Errorf("Controller subnets didn't match: expected=%v actual=%v", privateSubnets, c.Controller.Subnets)
+					if diff := cmp.Diff(c.Controller.Subnets, publicSubnets); diff != "" {
+						t.Errorf("Controller subnets didn't match: %s", diff)
 					}
-					if !reflect.DeepEqual(c.Controller.LoadBalancer.Subnets, publicSubnets) {
-						t.Errorf("Controller loadbalancer subnets didn't match: expected=%v actual=%v", privateSubnets, c.Controller.LoadBalancer.Subnets)
+					if diff := cmp.Diff(c.Controller.LoadBalancer.Subnets, publicSubnets); diff != "" {
+						t.Errorf("Controller loadbalancer subnets didn't match: %s", diff)
 					}
-					if !reflect.DeepEqual(c.Etcd.Subnets, privateSubnets) {
-						t.Errorf("Etcd subnets didn't match: expected=%v actual=%v", privateSubnets, c.Etcd.Subnets)
+					if diff := cmp.Diff(c.Etcd.Subnets, privateSubnets); diff != "" {
+						t.Errorf("Etcd subnets didn't match: %s", diff)
 					}
 				},
 			},
@@ -3051,20 +3031,20 @@ worker:
 				hasDefaultExperimentalFeatures,
 				spotFleetBasedNodePoolHasWaitSignalDisabled,
 				func(c *config.Config, t *testing.T) {
-					expected := []clusterapi.LaunchSpecification{
+					expected := []api.LaunchSpecification{
 						{
 							WeightedCapacity: 1,
 							InstanceType:     "c4.large",
 							SpotPrice:        "",
 							// RootVolumeSize was not specified in the configYaml but should default to workerRootVolumeSize * weightedCapacity
 							// RootVolumeType was not specified in the configYaml but should default to "gp2"
-							RootVolume: clusterapi.NewGp2RootVolume(40),
+							RootVolume: api.NewGp2RootVolume(40),
 						},
 						{
 							WeightedCapacity: 2,
 							InstanceType:     "c4.xlarge",
 							SpotPrice:        "",
-							RootVolume:       clusterapi.NewGp2RootVolume(100),
+							RootVolume:       api.NewGp2RootVolume(100),
 						},
 					}
 					p := c.NodePools[0]
@@ -3098,19 +3078,19 @@ worker:
 				hasDefaultExperimentalFeatures,
 				spotFleetBasedNodePoolHasWaitSignalDisabled,
 				func(c *config.Config, t *testing.T) {
-					expected := []clusterapi.LaunchSpecification{
+					expected := []api.LaunchSpecification{
 						{
 							WeightedCapacity: 1,
 							InstanceType:     "m4.large",
 							SpotPrice:        "",
 							// RootVolumeType was not specified in the configYaml but should default to gp2:
-							RootVolume: clusterapi.NewGp2RootVolume(40),
+							RootVolume: api.NewGp2RootVolume(40),
 						},
 						{
 							WeightedCapacity: 2,
 							InstanceType:     "m4.xlarge",
 							SpotPrice:        "",
-							RootVolume:       clusterapi.NewGp2RootVolume(80),
+							RootVolume:       api.NewGp2RootVolume(80),
 						},
 					}
 					p := c.NodePools[0]
@@ -3148,7 +3128,7 @@ worker:
 				hasDefaultExperimentalFeatures,
 				spotFleetBasedNodePoolHasWaitSignalDisabled,
 				func(c *config.Config, t *testing.T) {
-					expected := []clusterapi.LaunchSpecification{
+					expected := []api.LaunchSpecification{
 						{
 							WeightedCapacity: 1,
 							InstanceType:     "c4.large",
@@ -3156,14 +3136,14 @@ worker:
 							// RootVolumeSize was not specified in the configYaml but should default to workerRootVolumeSize * weightedCapacity
 							// RootVolumeIOPS was not specified in the configYaml but should default to workerRootVolumeIOPS * weightedCapacity
 							// RootVolumeType was not specified in the configYaml but should default to "io1"
-							RootVolume: clusterapi.NewIo1RootVolume(40, 100),
+							RootVolume: api.NewIo1RootVolume(40, 100),
 						},
 						{
 							WeightedCapacity: 2,
 							InstanceType:     "c4.xlarge",
 							SpotPrice:        "",
 							// RootVolumeType was not specified in the configYaml but should default to:
-							RootVolume: clusterapi.NewIo1RootVolume(80, 500),
+							RootVolume: api.NewIo1RootVolume(80, 500),
 						},
 					}
 					p := c.NodePools[0]
@@ -3237,32 +3217,32 @@ subnets:
 			assertConfig: []ConfigTester{
 				hasDefaultExperimentalFeatures,
 				func(c *config.Config, t *testing.T) {
-					subnet1 := clusterapi.NewPublicSubnetWithPreconfiguredRouteTable(firstAz, "10.0.0.0/24", "rtb-1a2b3c4d")
+					subnet1 := api.NewPublicSubnetWithPreconfiguredRouteTable(firstAz, "10.0.0.0/24", "rtb-1a2b3c4d")
 					subnet1.Name = "Subnet0"
-					subnets := clusterapi.Subnets{
+					subnets := api.Subnets{
 						subnet1,
 					}
-					expected := clusterapi.EtcdSettings{
-						Etcd: clusterapi.Etcd{
-							EC2Instance: clusterapi.EC2Instance{
+					expected := api.EtcdSettings{
+						Etcd: api.Etcd{
+							EC2Instance: api.EC2Instance{
 								Count:        1,
 								InstanceType: "t2.medium",
-								RootVolume: clusterapi.RootVolume{
+								RootVolume: api.RootVolume{
 									Size: 30,
 									Type: "gp2",
 									IOPS: 0,
 								},
 								Tenancy: "default",
 							},
-							DataVolume: clusterapi.DataVolume{
+							DataVolume: api.DataVolume{
 								Size:      30,
 								Type:      "gp2",
 								IOPS:      0,
 								Ephemeral: false,
 							},
 							Subnets: subnets,
-							UserSuppliedArgs: clusterapi.UserSuppliedArgs{
-								QuotaBackendBytes: clusterapi.DefaultQuotaBackendBytes,
+							UserSuppliedArgs: api.UserSuppliedArgs{
+								QuotaBackendBytes: api.DefaultQuotaBackendBytes,
 							},
 						},
 					}
@@ -3525,7 +3505,7 @@ controller:
 			assertConfig: []ConfigTester{
 				hasDefaultExperimentalFeatures,
 				func(c *config.Config, t *testing.T) {
-					expected := clusterapi.NodeLabels{"kube-aws.coreos.com/role": "controller"}
+					expected := api.NodeLabels{"kube-aws.coreos.com/role": "controller"}
 					actual := c.NodeLabels()
 					if !reflect.DeepEqual(expected, actual) {
 						t.Errorf("unexpected controller node labels: expected=%v, actual=%v", expected, actual)
@@ -3663,10 +3643,10 @@ worker:
 		t.Run(validCase.context, func(t *testing.T) {
 			configBytes := validCase.configYaml
 			// TODO Allow including plugins in test data?
-			plugins := []*clusterapi.Plugin{}
+			plugins := []*api.Plugin{}
 			providedConfig, err := config.ConfigFromBytes([]byte(configBytes), plugins)
 			if err != nil {
-				t.Errorf("failed to parse config %s: %v", configBytes, err)
+				t.Errorf("failed to parse config %s: %+v", configBytes, err)
 				t.FailNow()
 			}
 
@@ -3679,14 +3659,14 @@ worker:
 			helper.WithDummyCredentials(func(dummyAssetsDir string) {
 				var stackTemplateOptions = root.NewOptions(false, false)
 				stackTemplateOptions.AssetsDir = dummyAssetsDir
-				stackTemplateOptions.ControllerTmplFile = "../../core/controlplane/config/templates/cloud-config-controller"
-				stackTemplateOptions.WorkerTmplFile = "../../core/nodepool/config/templates/cloud-config-worker"
-				stackTemplateOptions.EtcdTmplFile = "../../core/etcd/config/templates/cloud-config-etcd"
-				stackTemplateOptions.RootStackTemplateTmplFile = "../../core/root/config/templates/stack-template.json"
-				stackTemplateOptions.NodePoolStackTemplateTmplFile = "../../core/nodepool/config/templates/stack-template.json"
-				stackTemplateOptions.ControlPlaneStackTemplateTmplFile = "../../core/controlplane/config/templates/stack-template.json"
-				stackTemplateOptions.NetworkStackTemplateTmplFile = "../../core/network/config/templates/stack-template.json"
-				stackTemplateOptions.EtcdStackTemplateTmplFile = "../../core/etcd/config/templates/stack-template.json"
+				stackTemplateOptions.ControllerTmplFile = "../../builtin/files/userdata/cloud-config-controller"
+				stackTemplateOptions.WorkerTmplFile = "../../builtin/files/userdata/cloud-config-worker"
+				stackTemplateOptions.EtcdTmplFile = "../../builtin/files/userdata/cloud-config-etcd"
+				stackTemplateOptions.RootStackTemplateTmplFile = "../../builtin/files/stack-templates/root.json.tmpl"
+				stackTemplateOptions.NodePoolStackTemplateTmplFile = "../../builtin/files/stack-templates/node-pool.json.tmpl"
+				stackTemplateOptions.ControlPlaneStackTemplateTmplFile = "../../builtin/files/stack-templates/control-plane.json.tmpl"
+				stackTemplateOptions.NetworkStackTemplateTmplFile = "../../builtin/files/stack-templates/network.json.tmpl"
+				stackTemplateOptions.EtcdStackTemplateTmplFile = "../../builtin/files/stack-templates/etcd.json.tmpl"
 
 				cl, err := root.CompileClusterFromConfig(providedConfig, stackTemplateOptions, false)
 				if err != nil {
@@ -3694,10 +3674,17 @@ worker:
 					t.FailNow()
 				}
 
-				cl.Session = &cluster.Session{
+				cl.Context = &model.Context{
 					ProvidedEncryptService:  helper.DummyEncryptService{},
 					ProvidedCFInterrogator:  helper.DummyCFInterrogator{},
 					ProvidedEC2Interrogator: helper.DummyEC2Interrogator{},
+					StackTemplateGetter:     helper.DummyStackTemplateGetter{},
+				}
+
+				_, err = cl.EnsureAllAssetsGenerated()
+				if err != nil {
+					t.Errorf("%v", err)
+					t.FailNow()
 				}
 
 				t.Run("AssertCluster", func(t *testing.T) {
@@ -4640,10 +4627,10 @@ worker:
 		t.Run(invalidCase.context, func(t *testing.T) {
 			configBytes := invalidCase.configYaml
 			// TODO Allow including plugins in test data?
-			plugins := []*clusterapi.Plugin{}
+			plugins := []*api.Plugin{}
 			providedConfig, err := config.ConfigFromBytes([]byte(configBytes), plugins)
 			if err == nil {
-				t.Errorf("expected to fail parsing config %s: %+v", configBytes, *providedConfig)
+				t.Errorf("expected to fail parsing config %s: %+v: %+v", configBytes, *providedConfig, err)
 				t.FailNow()
 			}
 

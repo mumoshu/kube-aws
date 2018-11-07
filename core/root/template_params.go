@@ -3,8 +3,8 @@ package root
 import (
 	"fmt"
 
-	"github.com/kubernetes-incubator/kube-aws/pkg/cluster"
-	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
+	"github.com/kubernetes-incubator/kube-aws/pkg/api"
+	"github.com/kubernetes-incubator/kube-aws/pkg/model"
 )
 
 // TemplateParams is the set of parameters exposed for templating cfn stack template for the root stack
@@ -17,19 +17,19 @@ func (p TemplateParams) ExtraCfnResources() map[string]interface{} {
 }
 
 func (p TemplateParams) ClusterName() string {
-	return p.cluster.controlPlane.ClusterName
+	return p.cluster.controlPlaneStack.ClusterName
 }
 
 func (p TemplateParams) KubeAwsVersion() string {
-	return cluster.VERSION
+	return model.VERSION
 }
 
-func (p TemplateParams) CloudWatchLogging() clusterapi.CloudWatchLogging {
-	return p.cluster.controlPlane.Config.CloudWatchLogging
+func (p TemplateParams) CloudWatchLogging() api.CloudWatchLogging {
+	return p.cluster.controlPlaneStack.Config.CloudWatchLogging
 }
 
-func (p TemplateParams) KubeDnsMasq() clusterapi.KubeDns {
-	return p.cluster.controlPlane.Config.KubeDns
+func (p TemplateParams) KubeDnsMasq() api.KubeDns {
+	return p.cluster.controlPlaneStack.Config.KubeDns
 }
 
 func newTemplateParams(c *Cluster) TemplateParams {
@@ -46,7 +46,7 @@ type NestedStack interface {
 }
 
 type networkStack struct {
-	network *cluster.Stack
+	network *model.Stack
 }
 
 func (p networkStack) Name() string {
@@ -72,7 +72,7 @@ func (p networkStack) TemplateURL() (string, error) {
 }
 
 type etcdStack struct {
-	etcd *cluster.Stack
+	etcd *model.Stack
 }
 
 func (p etcdStack) Name() string {
@@ -98,7 +98,7 @@ func (p etcdStack) TemplateURL() (string, error) {
 }
 
 type controlPlane struct {
-	controlPlane *cluster.Stack
+	controlPlane *model.Stack
 }
 
 func (p controlPlane) Name() string {
@@ -123,16 +123,16 @@ func (p controlPlane) TemplateURL() (string, error) {
 	return u, nil
 }
 
-func (p controlPlane) CloudWatchLogging() clusterapi.CloudWatchLogging {
+func (p controlPlane) CloudWatchLogging() api.CloudWatchLogging {
 	return p.controlPlane.Config.CloudWatchLogging
 }
 
-func (p controlPlane) KubeDns() clusterapi.KubeDns {
+func (p controlPlane) KubeDns() api.KubeDns {
 	return p.controlPlane.Config.KubeDns
 }
 
 type nodePool struct {
-	nodePool *cluster.Stack
+	nodePool *model.Stack
 }
 
 func (p nodePool) Name() string {
@@ -153,11 +153,11 @@ func (p nodePool) TemplateURL() (string, error) {
 	return u, nil
 }
 
-func (p nodePool) CloudWatchLogging() clusterapi.CloudWatchLogging {
+func (p nodePool) CloudWatchLogging() api.CloudWatchLogging {
 	return p.nodePool.NodePoolConfig.CloudWatchLogging
 }
 
-func (p nodePool) KubeDns() clusterapi.KubeDns {
+func (p nodePool) KubeDns() api.KubeDns {
 	return p.nodePool.NodePoolConfig.KubeDns
 }
 
@@ -172,7 +172,7 @@ func (p nodePool) NodePoolRollingStrategy() string {
 
 func (c TemplateParams) ControlPlane() controlPlane {
 	return controlPlane{
-		controlPlane: c.cluster.controlPlane,
+		controlPlane: c.cluster.controlPlaneStack,
 	}
 }
 
@@ -190,7 +190,7 @@ func (c TemplateParams) Network() networkStack {
 
 func (c TemplateParams) NodePools() []nodePool {
 	nps := []nodePool{}
-	for _, np := range c.cluster.nodePools {
+	for _, np := range c.cluster.nodePoolStacks {
 		nps = append(nps, nodePool{
 			nodePool: np,
 		})

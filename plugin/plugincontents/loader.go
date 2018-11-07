@@ -4,17 +4,17 @@ import (
 	"path/filepath"
 
 	"fmt"
-	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
+	"github.com/kubernetes-incubator/kube-aws/pkg/api"
 	"github.com/kubernetes-incubator/kube-aws/provisioner"
 )
 
 type PluginFileLoader struct {
-	p *clusterapi.Plugin
+	p *api.Plugin
 
 	FileLoader *provisioner.RemoteFileLoader
 }
 
-func NewPluginFileLoader(p *clusterapi.Plugin) *PluginFileLoader {
+func NewPluginFileLoader(p *api.Plugin) *PluginFileLoader {
 	return &PluginFileLoader{
 		p: p,
 	}

@@ -1,15 +1,15 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 
 	"github.com/go-yaml/yaml"
-	"github.com/kubernetes-incubator/kube-aws/pkg/cluster"
-	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
+	"github.com/kubernetes-incubator/kube-aws/pkg/api"
+	"github.com/kubernetes-incubator/kube-aws/pkg/model"
 	"github.com/kubernetes-incubator/kube-aws/plugin"
 	"github.com/kubernetes-incubator/kube-aws/plugin/clusterextension"
+	"github.com/pkg/errors"
 )
 
 type InitialConfig struct {
@@ -21,20 +21,20 @@ type InitialConfig struct {
 	KMSKeyARN        string
 	KeyName          string
 	NoRecordSet      bool
-	Region           clusterapi.Region
+	Region           api.Region
 	S3URI            string
 }
 
 type UnmarshalledConfig struct {
-	clusterapi.Cluster     `yaml:",inline"`
-	clusterapi.UnknownKeys `yaml:",inline"`
+	api.Cluster     `yaml:",inline"`
+	api.UnknownKeys `yaml:",inline"`
 }
 
 type Config struct {
-	*cluster.Config
-	NodePools              []*cluster.NodePoolConfig
-	Plugins                []*clusterapi.Plugin
-	clusterapi.UnknownKeys `yaml:",inline"`
+	*model.Config
+	NodePools       []*model.NodePoolConfig
+	Plugins         []*api.Plugin
+	api.UnknownKeys `yaml:",inline"`
 
 	Extras *clusterextension.ClusterExtension
 }
@@ -50,7 +50,7 @@ type unknownKeyValidation struct {
 
 func newDefaultUnmarshalledConfig() *UnmarshalledConfig {
 	return &UnmarshalledConfig{
-		Cluster: *clusterapi.NewDefaultCluster(),
+		Cluster: *api.NewDefaultCluster(),
 	}
 }
 
@@ -64,55 +64,37 @@ func unmarshalConfig(data []byte) (*UnmarshalledConfig, error) {
 	return c, nil
 }
 
-func ConfigFromBytes(data []byte, plugins []*clusterapi.Plugin) (*Config, error) {
+func ConfigFromBytes(data []byte, plugins []*api.Plugin) (*Config, error) {
 	c, err := unmarshalConfig(data)
 	if err != nil {
 		return nil, err
 	}
 
 	cpCluster := &c.Cluster
-	if err := cpCluster.Load(cluster.ControlPlaneStackName); err != nil {
+	if err := cpCluster.Load(model.ControlPlaneStackName); err != nil {
 		return nil, err
 	}
 
 	extras := clusterextension.NewExtrasFromPlugins(plugins, c.PluginConfigs)
 
-	opts := clusterapi.ClusterOptions{
+	opts := api.ClusterOptions{
 		S3URI: c.S3URI,
 		// TODO
 		SkipWait: false,
 	}
 
-	cpConfig, err := cluster.Compile(cpCluster, opts)
+	cpConfig, err := model.Compile(cpCluster, opts)
 	if err != nil {
 		return nil, err
 	}
 
 	nodePools := c.NodePools
 
-	anyNodePoolIsMissingAPIEndpointName := true
-	for _, np := range nodePools {
-		if np.APIEndpointName == "" {
-			anyNodePoolIsMissingAPIEndpointName = true
-			break
-		}
-	}
-
-	if len(cpConfig.APIEndpoints) > 1 && c.Worker.APIEndpointName == "" && anyNodePoolIsMissingAPIEndpointName {
-		return nil, errors.New("worker.apiEndpointName must not be empty when there're 2 or more API endpoints under the key `apiEndpoints` and one of worker.nodePools[] are missing apiEndpointName")
-	}
-
-	if c.Worker.APIEndpointName != "" {
-		if _, err := cpConfig.APIEndpoints.FindByName(c.APIEndpointName); err != nil {
-			return nil, fmt.Errorf("invalid value for worker.apiEndpointName: no API endpoint named \"%s\" found", c.APIEndpointName)
-		}
-	}
-
-	nps := []*cluster.NodePoolConfig{}
+	nps := []*model.NodePoolConfig{}
 	for i, np := range nodePools {
-		npConf, err := cluster.NodePoolCompile(np, cpConfig)
+		npConf, err := model.NodePoolCompile(np, cpConfig)
 		if err != nil {
-			return nil, fmt.Errorf("invalid node pool at index %d: %v", i, err)
+			return nil, errors.Wrapf(err, "invalid node pool at index %d", i)
 		}
 
 		if err := failFastWhenUnknownKeysFound([]unknownKeyValidation{
@@ -188,7 +170,7 @@ func ConfigFromFile(configPath string) (*Config, error) {
 
 	c, err := ConfigFromBytes(data, plugins)
 	if err != nil {
-		return nil, fmt.Errorf("failed loading %s: %v", configPath, err)
+		return nil, errors.Wrapf(err, "failed loading %s: %v", configPath, err)
 	}
 
 	return c, nil

@@ -1,7 +1,7 @@
 package credential
 
 import (
-	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
+	"github.com/kubernetes-incubator/kube-aws/pkg/api"
 	"github.com/kubernetes-incubator/kube-aws/pki"
 	"io/ioutil"
 	"os"
@@ -28,7 +28,7 @@ func (pki *ProtectedPKI) write(path string, data []byte) error {
 	return ioutil.WriteFile(path, data, 0644)
 }
 
-func (pki *ProtectedPKI) CreateKeyaPair(spec clusterapi.KeyPairSpec) error {
+func (pki *ProtectedPKI) CreateKeyaPair(spec api.KeyPairSpec) error {
 	keypair, err := pki.GenerateKeyPair(spec)
 	if err != nil {
 		return err
@@ -49,7 +49,7 @@ func (pki *ProtectedPKI) CreateKeyaPair(spec clusterapi.KeyPairSpec) error {
 	return nil
 }
 
-func (pki *ProtectedPKI) EnsureKeyPairsCreated(specs []clusterapi.KeyPairSpec) error {
+func (pki *ProtectedPKI) EnsureKeyPairsCreated(specs []api.KeyPairSpec) error {
 	for _, spec := range specs {
 		keypath := spec.KeyPath()
 		shapath := spec.KeyPath() + ".fingerprint"

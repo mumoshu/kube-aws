@@ -3,14 +3,14 @@ package pluginutil
 import (
 	"fmt"
 
-	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
+	"github.com/kubernetes-incubator/kube-aws/pkg/api"
 )
 
-func MergeValues(v clusterapi.Values, o map[string]interface{}) clusterapi.Values {
+func MergeValues(v api.Values, o map[string]interface{}) api.Values {
 	r := merge(map[string]interface{}(v), map[string]interface{}(o))
 	switch r := r.(type) {
 	case map[string]interface{}:
-		return clusterapi.Values(r)
+		return api.Values(r)
 	}
 	panic(fmt.Errorf("error in type assertion to map[string]interface{} from merge result: %v", r))
 }

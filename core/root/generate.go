@@ -8,19 +8,19 @@ import (
 	"github.com/gobuffalo/packr"
 	"github.com/kubernetes-incubator/kube-aws/builtin"
 	"github.com/kubernetes-incubator/kube-aws/filegen"
-	"github.com/kubernetes-incubator/kube-aws/pkg/cluster"
-	"github.com/kubernetes-incubator/kube-aws/pkg/clusterapi"
+	"github.com/kubernetes-incubator/kube-aws/pkg/api"
+	"github.com/kubernetes-incubator/kube-aws/pkg/model"
 	"os"
 	"strings"
 )
 
 func RenderStack(configPath string) error {
 
-	c, err := cluster.ClusterFromFile(configPath)
+	c, err := model.ClusterFromFile(configPath)
 	if err != nil {
 		return err
 	}
-	config, err := cluster.Compile(c, clusterapi.ClusterOptions{})
+	config, err := model.Compile(c, api.ClusterOptions{})
 	kubeconfig, err := generateKubeconfig(config)
 	if err != nil {
 		return err
@@ -58,7 +58,7 @@ func RenderStack(configPath string) error {
 	return nil
 }
 
-func generateKubeconfig(clusterConfig *cluster.Config) ([]byte, error) {
+func generateKubeconfig(clusterConfig *model.Config) ([]byte, error) {
 
 	tmpl, err := template.New("kubeconfig.yaml").Parse(builtin.String("kubeconfig.tmpl"))
 	if err != nil {
