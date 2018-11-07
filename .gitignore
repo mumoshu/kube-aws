@@ -9,6 +9,7 @@ kube-aws
 .envrc
 coverage.txt
 profile.out
+test-result.json
 
 # gitbook docs
 _book
