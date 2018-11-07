@@ -15,7 +15,7 @@ type CustomFile struct {
 	Permissions uint   `yaml:"permissions"`
 	Content     string `yaml:"content,omitempty"`
 	Template    string `yaml:"template,omitempty"`
-	Type        string `yaml:"type,omitempty`
+	Type        string `yaml:"type,omitempty"`
 	UnknownKeys `yaml:",inline"`
 }
 
