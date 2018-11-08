@@ -124,7 +124,6 @@ func (s *Stack) addTarballedAssets(assetsBuilder *cfnstack.AssetsBuilderImpl) er
 
 	ts := t.Format("20060102150405")
 	cacheDir := fmt.Sprintf("cache/%s/%s", ts, s.StackName)
-	fmt.Fprintf(os.Stderr, "cacheDir= %v", cacheDir)
 
 	loader := &provisioner.RemoteFileLoader{}
 
