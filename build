@@ -41,4 +41,4 @@ fi
 if [[ ! "${BUILD_GOARCH:-}" == "" ]];then
   export GOARCH=$BUILD_GOARCH
 fi
-go build -ldflags "-X github.com/kubernetes-incubator/kube-aws/pkg/cluster.VERSION=${VERSION}" -a -tags netgo -installsuffix netgo -o "$OUTPUT_PATH" ./
+go build -ldflags "-X github.com/kubernetes-incubator/kube-aws/pkg/model.VERSION=${VERSION}" -a -tags netgo -installsuffix netgo -o "$OUTPUT_PATH" ./
