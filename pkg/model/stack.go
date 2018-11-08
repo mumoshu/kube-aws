@@ -17,7 +17,6 @@ import (
 	"github.com/kubernetes-incubator/kube-aws/pki"
 	"github.com/kubernetes-incubator/kube-aws/provisioner"
 	"net/url"
-	"os"
 	"time"
 )
 
@@ -113,6 +112,10 @@ func (c *Stack) buildAssets() (cfnstack.Assets, error) {
 }
 
 func (s *Stack) addTarballedAssets(assetsBuilder *cfnstack.AssetsBuilderImpl) error {
+	if len(s.archivedFiles) == 0 {
+		return nil
+	}
+
 	t := time.Now()
 
 	//s3Client := s3.New(s.Session)
