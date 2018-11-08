@@ -7,7 +7,6 @@ import (
 
 	"github.com/go-yaml/yaml"
 	"github.com/kubernetes-incubator/kube-aws/pkg/api"
-	"os"
 )
 
 type Loader struct {
@@ -56,7 +55,6 @@ func PluginFromFile(path string) (*api.Plugin, error) {
 }
 
 func PluginFromBytes(data []byte) (*api.Plugin, error) {
-	fmt.Fprintf(os.Stderr, "plugin bytes %s\n", string(data))
 	p := &api.Plugin{}
 	if err := yaml.UnmarshalStrict(data, p); err != nil {
 		return nil, fmt.Errorf("Failed to parse as yaml: %v", err)
