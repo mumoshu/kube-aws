@@ -71,7 +71,7 @@ func (p *Provisioner) Send(s3Client S3ObjectPutter) error {
 
 func (p *Provisioner) RemoteCommand() (string, error) {
 	// Download the archive when and only when there are one or more files to transfer
-	if len(p.Bundle) > 0 {
+	if p != nil && len(p.Bundle) > 0 {
 		trans := p.GetTransferredFile()
 		cmd := fmt.Sprintf(`run bash -c "%s" && tar zxvf %s -C /`, trans.ReceiveCommand(), trans.Path)
 		// Run the entrypoint command when and only when it is specified
