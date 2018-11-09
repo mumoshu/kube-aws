@@ -278,7 +278,16 @@ func withHostedZoneIDPrefix(id string) string {
 	return id
 }
 
-func (c *Cluster) Load(cpStackName string) error {
+func (c Cluster) ControlPlaneStackName() string {
+	if c.CloudFormation.StackNameOverrides.ControlPlane != "" {
+		return c.CloudFormation.StackNameOverrides.ControlPlane
+	}
+	return controlPlaneStackName
+}
+
+func (c *Cluster) Load() error {
+	cpStackName := c.ControlPlaneStackName()
+
 	// If the user specified no subnets, we assume that a single AZ configuration with the default instanceCIDR is demanded
 	if len(c.Subnets) == 0 && c.InstanceCIDR == "" {
 		c.InstanceCIDR = "10.0.0.0/24"

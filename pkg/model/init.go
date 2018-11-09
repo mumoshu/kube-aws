@@ -31,7 +31,7 @@ func ClusterFromBytes(data []byte) (*api.Cluster, error) {
 
 	c.HyperkubeImage.Tag = c.K8sVer
 
-	if err := c.Load(ControlPlaneStackName); err != nil {
+	if err := c.Load(); err != nil {
 		return c, err
 	}
 

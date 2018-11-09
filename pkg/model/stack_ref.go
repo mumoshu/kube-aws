@@ -7,7 +7,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/route53"
-	"github.com/kubernetes-incubator/kube-aws/cfnstack"
 	"github.com/kubernetes-incubator/kube-aws/logger"
 	"github.com/kubernetes-incubator/kube-aws/pkg/api"
 	"strings"
@@ -112,10 +111,6 @@ func (c *StackRef) validateExistingVPCState(ec2Svc ec2Service) error {
 	}
 
 	return nil
-}
-
-func (c *StackRef) Destroy() error {
-	return cfnstack.NewDestroyer(ControlPlaneStackName, c.session, c.CloudFormation.RoleARN).Destroy()
 }
 
 func (c *StackRef) validateKeyPair(ec2Svc ec2Service) error {

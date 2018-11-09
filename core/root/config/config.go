@@ -71,7 +71,7 @@ func ConfigFromBytes(data []byte, plugins []*api.Plugin) (*Config, error) {
 	}
 
 	cpCluster := &c.Cluster
-	if err := cpCluster.Load(model.ControlPlaneStackName); err != nil {
+	if err := cpCluster.Load(); err != nil {
 		return nil, err
 	}
 

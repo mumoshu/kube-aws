@@ -737,7 +737,7 @@ func defaultStackForTesting(opts api.StackTemplateOptions) (*Stack, error) {
 	c.S3URI = "s3://mybucket/mydir"
 	c.KMSKeyARN = "arn:aws:kms:us-west-1:xxxxxxxxx:key/xxxxxxxxxxxxxxxxxxx"
 
-	if err := c.Load(controlPlaneStackName); err != nil {
+	if err := c.Load(); err != nil {
 		return nil, err
 	}
 

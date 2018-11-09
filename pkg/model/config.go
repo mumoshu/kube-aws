@@ -180,13 +180,6 @@ func WithTrailingDot(s string) string {
 	return s
 }
 
-func (c Config) ControlPlaneStackName() string {
-	if c.CloudFormation.StackNameOverrides.ControlPlane != "" {
-		return c.CloudFormation.StackNameOverrides.ControlPlane
-	}
-	return controlPlaneStackName
-}
-
 func (c Config) NetworkStackName() string {
 	if c.CloudFormation.StackNameOverrides.Network != "" {
 		return c.CloudFormation.StackNameOverrides.Network
