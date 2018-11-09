@@ -4,6 +4,6 @@ const (
 	credentialsDir = "credentials"
 	userDataDir    = "userdata"
 
-	networkStackName      = "network"
-	etcdStackName         = "etcd"
+	networkStackName = "network"
+	etcdStackName    = "etcd"
 )
