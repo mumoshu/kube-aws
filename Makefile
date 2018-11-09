@@ -6,6 +6,10 @@ LOCAL_USER_ID?=$(shell id -u $$USER)
 build:
 	./build
 
+.PHONY: travisbuild
+travisbuild:
+	bash -c 'travis_wait 20 make test-with-cover'
+
 .PHONY: format
 format:
 	test -z "$$(find . -path ./vendor -prune -type f -o -name '*.go' -exec gofmt -d {} + | tee /dev/stderr)" || \
